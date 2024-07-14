@@ -4314,6 +4314,7 @@ return {
 		display = ast_display,
 
 		span = {
+			istring = ast_span_istring,
 			type = ast_span_type,
 			type_table_field = ast_span_type_table_field,
 			return_type = ast_span_return_type,
