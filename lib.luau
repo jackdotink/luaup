@@ -44,6 +44,7 @@ type TokenIdent<Value = string> = TokenType<"ident"> & { value: Value }
 type TokenError = TokenType<"error"> & { value: string }
 type TokenNumber = TokenType<"number"> & { value: string }
 type TokenString = TokenType<"string"> & { value: string }
+type TokenIStringSimple = TokenType<"istringsimple"> & { value: string }
 type TokenIStringBegin = TokenType<"istringbegin"> & { value: string }
 type TokenIStringMiddle = TokenType<"istringmiddle"> & { value: string }
 type TokenIStringLast = TokenType<"istringlast"> & { value: string }
@@ -55,6 +56,7 @@ export type Token =
 	| TokenError
 	| TokenNumber
 	| TokenString
+	| TokenIStringSimple
 	| TokenIStringBegin
 	| TokenIStringMiddle
 	| TokenIStringLast
@@ -145,7 +147,8 @@ type State = {
 	line: number,
 	char: number,
 
-	braces: number?,
+	brace_count: number,
+	brace_stack: { number },
 
 	current: Token?,
 	lookahead: Token?,
@@ -159,7 +162,12 @@ do
 	end
 
 	local function is_whitespace(c: number): boolean
-		return c == char(" ") or c == char("\t") or c == char("\n") or c == char("\r")
+		return c == char(" ")
+			or c == char("\t")
+			or c == char("\n")
+			or c == char("\r")
+			or c == char("\v")
+			or c == char("\f")
 	end
 
 	local function is_digit(c: number): boolean
@@ -199,30 +207,12 @@ do
 		return location_new(state.pos, state.line, state.char)
 	end
 
-	local function trivia(state: State): { TokenTrivia }
+	function lexer_next(state: State): Token
 		local trivia: { TokenTrivia } = {}
 
 		while true do
-			local start = loc(state)
-
-			if first(state) == char("-") and second(state) == char("-") then
-				bump(state)
-
-				while first(state) ~= char("\n") do
-					bump(state)
-				end
-
-				local span = span_new(start, loc(state))
-				local value = value(state, location_byte(start))
-
-				table.insert(trivia, { kind = "comment", span = span, value = value })
-			elseif is_whitespace(first(state)) then
-				if first(state) == char("\n") then
-					state.line += 1
-					state.char = 0
-				end
-
-				bump(state)
+			if is_whitespace(first(state)) then
+				local start = loc(state)
 
 				while is_whitespace(first(state)) do
 					if first(state) == char("\n") then
@@ -233,388 +223,612 @@ do
 					bump(state)
 				end
 
-				local span = span_new(start, loc(state))
-				local value = value(state, location_byte(start))
+				local finish = loc(state)
+				local value = value(state, start.byte)
 
-				table.insert(trivia, { kind = "whitespace", span = span, value = value })
+				table.insert(trivia, { kind = "whitespace", span = span_new(start, finish), value = value })
+			elseif first(state) == char("-") and second(state) == char("-") then
+				local start = loc(state)
+
+				bump(state)
+				bump(state)
+
+				local long: number? = nil
+
+				if first(state) == char("[") then
+					bump(state)
+					local count = 0
+
+					while first(state) == char("=") do
+						bump(state)
+						count += 1
+					end
+
+					if first(state) == char("[") then
+						bump(state)
+						long = count
+					end
+				end
+
+				while true do
+					if long then
+						if first(state) == char("]") then
+							bump(state)
+
+							local count = 0
+
+							while first(state) == char("=") do
+								bump(state)
+								count += 1
+							end
+
+							if count == long and first(state) == char("]") then
+								bump(state)
+								break
+							end
+						end
+					else
+						if first(state) == char("\n") or first(state) == 0 then
+							break
+						end
+					end
+
+					bump(state)
+				end
+
+				local finish = loc(state)
+				local value = value(state, start.byte)
+
+				table.insert(trivia, { kind = "comment", span = span_new(start, finish), value = value })
 			else
 				break
 			end
 		end
 
-		return trivia
-	end
-
-	function lexer_next(state: State): Token
-		local trivia = trivia(state)
 		local start = loc(state)
-
 		local c = first(state)
 
 		if c == 0 then
-			return { kind = "eof" :: "eof", span = span_new(start, start), trivia = trivia }
+			return { kind = "eof", span = span_new(start, start), trivia = trivia }
 		elseif is_alpha(c) or c == char("_") then
 			bump(state)
+			local v = first(state)
 
-			while is_alpha(first(state)) or first(state) == char("_") or is_digit(first(state)) do
+			while is_alpha(v) or is_digit(v) or v == char("_") do
 				bump(state)
+				v = first(state)
 			end
 
-			local value = value(state, location_byte(start))
+			local finish = loc(state)
+			local value = value(state, start.byte)
 
-			if c == char("a") then
-				if value == "and" then
-					return { kind = "and", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("b") then
-				if value == "break" then
-					return { kind = "break", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("d") then
-				if value == "do" then
-					return { kind = "do", span = span_new(start, loc(state)), trivia = trivia }
+			if c == char("l") then
+				if value == "local" then
+					return { kind = "local", span = span_new(start, finish), trivia = trivia }
 				end
 			elseif c == char("e") then
-				if value == "else" then
-					return { kind = "else", span = span_new(start, loc(state)), trivia = trivia }
+				if value == "end" then
+					return { kind = "end", span = span_new(start, finish), trivia = trivia }
 				elseif value == "elseif" then
-					return { kind = "elseif", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "end" then
-					return { kind = "end", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("f") then
-				if value == "false" then
-					return { kind = "false", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "for" then
-					return { kind = "for", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "function" then
-					return { kind = "function", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("i") then
-				if value == "if" then
-					return { kind = "if", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "in" then
-					return { kind = "in", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("l") then
-				if value == "local" then
-					return { kind = "local", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("n") then
-				if value == "nil" then
-					return { kind = "nil", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "not" then
-					return { kind = "not", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("o") then
-				if value == "or" then
-					return { kind = "or", span = span_new(start, loc(state)), trivia = trivia }
-				end
-			elseif c == char("r") then
-				if value == "repeat" then
-					return { kind = "repeat", span = span_new(start, loc(state)), trivia = trivia }
-				elseif value == "return" then
-					return { kind = "return", span = span_new(start, loc(state)), trivia = trivia }
+					return { kind = "elseif", span = span_new(start, finish), trivia = trivia }
+				elseif value == "else" then
+					return { kind = "else", span = span_new(start, finish), trivia = trivia }
 				end
 			elseif c == char("t") then
 				if value == "then" then
-					return { kind = "then", span = span_new(start, loc(state)), trivia = trivia }
+					return { kind = "then", span = span_new(start, finish), trivia = trivia }
 				elseif value == "true" then
-					return { kind = "true", span = span_new(start, loc(state)), trivia = trivia }
+					return { kind = "true", span = span_new(start, finish), trivia = trivia }
 				end
-			elseif c == char("u") then
-				if value == "until" then
-					return { kind = "until", span = span_new(start, loc(state)), trivia = trivia }
+			elseif c == char("r") then
+				if value == "return" then
+					return { kind = "return", span = span_new(start, finish), trivia = trivia }
+				elseif value == "repeat" then
+					return { kind = "repeat", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("f") then
+				if value == "function" then
+					return { kind = "function", span = span_new(start, finish), trivia = trivia }
+				elseif value == "for" then
+					return { kind = "for", span = span_new(start, finish), trivia = trivia }
+				elseif value == "false" then
+					return { kind = "false", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("i") then
+				if value == "if" then
+					return { kind = "if", span = span_new(start, finish), trivia = trivia }
+				elseif value == "in" then
+					return { kind = "in", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("d") then
+				if value == "do" then
+					return { kind = "do", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("n") then
+				if value == "nil" then
+					return { kind = "nil", span = span_new(start, finish), trivia = trivia }
+				elseif value == "not" then
+					return { kind = "not", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("o") then
+				if value == "or" then
+					return { kind = "or", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("a") then
+				if value == "and" then
+					return { kind = "and", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("b") then
+				if value == "break" then
+					return { kind = "break", span = span_new(start, finish), trivia = trivia }
 				end
 			elseif c == char("w") then
 				if value == "while" then
-					return { kind = "while", span = span_new(start, loc(state)), trivia = trivia }
+					return { kind = "while", span = span_new(start, finish), trivia = trivia }
+				end
+			elseif c == char("u") then
+				if value == "until" then
+					return { kind = "until", span = span_new(start, finish), trivia = trivia }
 				end
 			end
 
-			return { kind = "ident", span = span_new(start, loc(state)), trivia = trivia, value = value }
+			return { kind = "ident", span = span_new(start, finish), value = value, trivia = trivia }
 		elseif is_digit(c) or (c == char(".") and is_digit(second(state))) then
-			local had_dot = c == char(".")
-			bump(state)
+			if c == char("0") then
+				bump(state)
+				c = first(state)
 
-			while true do
-				if is_digit(first(state)) or first(state) == char("_") then
+				if c == char("x") or c == char("X") then
 					bump(state)
-				elseif first(state) == char(".") and not had_dot then
-					had_dot = true
+					c = first(state)
+
+					while
+						is_digit(c)
+						or (char("a") <= c and c <= char("f"))
+						or (char("A") <= c and c <= char("F"))
+						or c == char("_")
+					do
+						bump(state)
+						c = first(state)
+					end
+
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
+				elseif c == char("b") or c == char("B") then
 					bump(state)
-				else
-					break
+					c = first(state)
+
+					while c == char("0") or c == char("1") or c == char("_") do
+						bump(state)
+						c = first(state)
+					end
+
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
 				end
 			end
 
-			local value = value(state, location_byte(start))
+			local had_dot = c == char(".")
 
-			return { kind = "number", span = span_new(start, loc(state)), trivia = trivia, value = value }
+			while is_digit(c) or c == char("_") or (not had_dot and c == char(".")) do
+				if c == char(".") then
+					had_dot = true
+				end
+
+				bump(state)
+				c = first(state)
+			end
+
+			if c == char("e") or c == char("E") then
+				bump(state)
+				c = first(state)
+
+				if c == char("+") or c == char("-") then
+					bump(state)
+					c = first(state)
+				end
+
+				while is_digit(c) or c == char("_") do
+					bump(state)
+					c = first(state)
+				end
+			end
+
+			local finish = loc(state)
+			local value = value(state, start.byte)
+
+			return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
 		elseif c == char('"') or c == char("'") then
 			local quote = c
 			bump(state)
 
-			local escaped = false
+			while first(state) ~= quote do
+				if first(state) == char("\n") or first(state) == 0 then
+					local finish = loc(state)
+					local value = value(state, start.byte)
 
-			while true do
-				if first(state) == quote and not escaped then
-					bump(state)
-					break
+					return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
 				elseif first(state) == char("\\") then
-					escaped = not escaped
-				else
-					escaped = false
-				end
+					bump(state)
 
-				bump(state)
+					if first(state) == char("\r") and second(state) == char("\n") then
+						bump(state)
+						bump(state)
+
+						state.line += 1
+						state.char = 0
+					elseif first(state) == char("z") then
+						bump(state)
+
+						while is_whitespace(first(state)) do
+							if first(state) == char("\n") then
+								state.line += 1
+								state.char = 0
+							end
+
+							bump(state)
+						end
+					else
+						if first(state) == char("\n") then
+							state.line += 1
+							state.char = 0
+						end
+
+						bump(state)
+					end
+				else
+					bump(state)
+				end
 			end
 
-			local value = value(state, location_byte(start))
+			bump(state)
 
-			return { kind = "string", span = span_new(start, loc(state)), trivia = trivia, value = value }
+			local finish = loc(state)
+			local value = value(state, start.byte)
+
+			return { kind = "string", span = span_new(start, finish), value = value, trivia = trivia }
 		elseif c == char("`") then
 			bump(state)
 
-			local escaped = false
-
 			while true do
-				if first(state) == char("`") and not escaped then
+				if first(state) == char("`") then
 					bump(state)
 
-					local value = value(state, location_byte(start))
+					local finish = loc(state)
+					local value = value(state, start.byte)
 
-					return { kind = "string", span = span_new(start, loc(state)), trivia = trivia, value = value }
-				elseif first(state) == char("{") and not escaped then
+					return { kind = "istringsimple", span = span_new(start, finish), value = value, trivia = trivia }
+				elseif first(state) == 0 or first(state) == char("\n") then
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
+				elseif first(state) == char("{") then
 					bump(state)
-					state.braces = 0
-					break
+					table.insert(state.brace_stack, state.brace_count)
+
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "istringbegin", span = span_new(start, finish), value = value, trivia = trivia }
 				elseif first(state) == char("\\") then
-					escaped = not escaped
+					bump(state)
+
+					if first(state) == char("\r") and second(state) == char("\n") then
+						bump(state)
+						bump(state)
+
+						state.line += 1
+						state.char = 0
+					elseif first(state) == char("z") then
+						bump(state)
+
+						while is_whitespace(first(state)) do
+							if first(state) == char("\n") then
+								state.line += 1
+								state.char = 0
+							end
+
+							bump(state)
+						end
+					elseif first(state) == char("u") and second(state) == char("{") then
+						bump(state)
+						bump(state)
+					else
+						if first(state) == char("\n") then
+							state.line += 1
+							state.char = 0
+						end
+
+						bump(state)
+					end
 				else
-					escaped = false
+					bump(state)
 				end
-
-				bump(state)
 			end
+		elseif c == char("}") then
+			if #state.brace_stack ~= 0 and state.brace_stack[#state.brace_stack] == state.brace_count then
+				state.brace_stack[#state.brace_stack] = nil
+				bump(state)
 
-			local value = value(state, location_byte(start))
+				while true do
+					if first(state) == char("`") then
+						bump(state)
 
-			return { kind = "istringbegin", span = span_new(start, loc(state)), trivia = trivia, value = value }
-		end
+						local finish = loc(state)
+						local value = value(state, start.byte)
 
-		if c == char("+") then
+						return { kind = "istringlast", span = span_new(start, finish), value = value, trivia = trivia }
+					elseif first(state) == 0 or first(state) == char("\n") then
+						local finish = loc(state)
+						local value = value(state, start.byte)
+
+						return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
+					elseif first(state) == char("{") then
+						bump(state)
+						table.insert(state.brace_stack, state.brace_count)
+
+						local finish = loc(state)
+						local value = value(state, start.byte)
+
+						return { kind = "istringmiddle", span = span_new(start, finish), value = value, trivia = trivia }
+					elseif first(state) == char("\\") then
+						bump(state)
+
+						if first(state) == char("\r") and second(state) == char("\n") then
+							bump(state)
+							bump(state)
+
+							state.line += 1
+							state.char = 0
+						elseif first(state) == char("z") then
+							bump(state)
+
+							while is_whitespace(first(state)) do
+								if first(state) == char("\n") then
+									state.line += 1
+									state.char = 0
+								end
+
+								bump(state)
+							end
+						elseif first(state) == char("u") and second(state) == char("{") then
+							bump(state)
+							bump(state)
+						else
+							if first(state) == char("\n") then
+								state.line += 1
+								state.char = 0
+							end
+
+							bump(state)
+						end
+					else
+						bump(state)
+					end
+				end
+			else
+				state.brace_count -= 1
+				bump(state)
+
+				return { kind = "}", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char("{") then
+			state.brace_count += 1
 			bump(state)
 
+			return { kind = "{", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("[") then
+			bump(state)
+
+			if first(state) == char("[") or first(state) == char("=") then
+				local eqs = 0
+
+				while first(state) == char("=") do
+					bump(state)
+					eqs += 1
+				end
+
+				if first(state) == char("[") then
+					bump(state)
+
+					while true do
+						if first(state) == 0 then
+							local finish = loc(state)
+							local value = value(state, start.byte)
+
+							return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
+						elseif first(state) == char("]") then
+							bump(state)
+							local count = 0
+
+							while first(state) == char("=") do
+								count += 1
+								bump(state)
+							end
+
+							if count == eqs and first(state) == char("]") then
+								break
+							else
+								bump(state)
+							end
+						elseif first(state) == char("\\") then
+							bump(state)
+
+							if first(state) == char("\r") and second(state) == char("\n") then
+								bump(state)
+								bump(state)
+
+								state.line += 1
+								state.char = 0
+							elseif first(state) == char("z") then
+								bump(state)
+
+								while is_whitespace(first(state)) do
+									if first(state) == char("\n") then
+										state.line += 1
+										state.char = 0
+									end
+
+									bump(state)
+								end
+							else
+								if first(state) == char("\n") then
+									state.line += 1
+									state.char = 0
+								end
+
+								bump(state)
+							end
+						else
+							bump(state)
+						end
+					end
+
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "string", span = span_new(start, finish), value = value, trivia = trivia }
+				else
+					local finish = loc(state)
+					local value = value(state, start.byte)
+
+					return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
+				end
+			else
+				return { kind = "[", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		end
+
+		bump(state)
+
+		if c == char(",") then
+			return { kind = ",", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("(") then
+			return { kind = "(", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char(")") then
+			return { kind = ")", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("=") then
+			if first(state) == char("=") then
+				bump(state)
+				return { kind = "==", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "=", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char(".") then
+			if first(state) == char(".") then
+				bump(state)
+
+				if first(state) == char(".") then
+					bump(state)
+					return { kind = "...", span = span_new(start, loc(state)), trivia = trivia }
+				elseif first(state) == char("=") then
+					bump(state)
+					return { kind = "..=", span = span_new(start, loc(state)), trivia = trivia }
+				else
+					return { kind = "..", span = span_new(start, loc(state)), trivia = trivia }
+				end
+			else
+				return { kind = ".", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char(":") then
+			if first(state) == char(":") then
+				bump(state)
+				return { kind = "::", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = ":", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char(">") then
+			if first(state) == char("=") then
+				bump(state)
+				return { kind = ">=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = ">", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char("<") then
+			if first(state) == char("=") then
+				bump(state)
+				return { kind = "<=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "<", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char("]") then
+			return { kind = "]", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("-") then
+			if first(state) == char(">") then
+				bump(state)
+				return { kind = "->", span = span_new(start, loc(state)), trivia = trivia }
+			elseif first(state) == char("=") then
+				bump(state)
+				return { kind = "-=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "-", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char("|") then
+			return { kind = "|", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("?") then
+			return { kind = "?", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("+") then
 			if first(state) == char("=") then
 				bump(state)
 				return { kind = "+=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "+", span = span_new(start, loc(state)), trivia = trivia }
 			end
-
-			return { kind = "+", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("-") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = "-=", span = span_new(start, loc(state)), trivia = trivia }
-			elseif first(state) == char(">") then
-				bump(state)
-				return { kind = "->", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = "-", span = span_new(start, loc(state)), trivia = trivia }
 		elseif c == char("*") then
-			bump(state)
-
 			if first(state) == char("=") then
 				bump(state)
 				return { kind = "*=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "*", span = span_new(start, loc(state)), trivia = trivia }
 			end
-
-			return { kind = "*", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("/") then
+		elseif c == char("#") then
+			return { kind = "#", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("&") then
+			return { kind = "&", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("~") and first(state) == char("=") then
 			bump(state)
 
+			return { kind = "~=", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char("^") then
+			if first(state) == char("=") then
+				bump(state)
+				return { kind = "^=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "^", span = span_new(start, loc(state)), trivia = trivia }
+			end
+		elseif c == char("/") then
 			if first(state) == char("/") then
 				bump(state)
 
 				if first(state) == char("=") then
 					bump(state)
 					return { kind = "//=", span = span_new(start, loc(state)), trivia = trivia }
+				else
+					return { kind = "//", span = span_new(start, loc(state)), trivia = trivia }
 				end
-
-				return { kind = "//", span = span_new(start, loc(state)), trivia = trivia }
 			elseif first(state) == char("=") then
 				bump(state)
 				return { kind = "/=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "/", span = span_new(start, loc(state)), trivia = trivia }
 			end
-
-			return { kind = "/", span = span_new(start, loc(state)), trivia = trivia }
+		elseif c == char(";") then
+			return { kind = ";", span = span_new(start, loc(state)), trivia = trivia }
 		elseif c == char("%") then
-			bump(state)
-
 			if first(state) == char("=") then
 				bump(state)
 				return { kind = "%=", span = span_new(start, loc(state)), trivia = trivia }
+			else
+				return { kind = "%", span = span_new(start, loc(state)), trivia = trivia }
 			end
-
-			return { kind = "%", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("^") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = "^=", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = "^", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("#") then
-			bump(state)
-			return { kind = "#", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(".") then
-			bump(state)
-
-			if first(state) == char(".") then
-				bump(state)
-
-				if first(state) == char("=") then
-					bump(state)
-					return { kind = "..=", span = span_new(start, loc(state)), trivia = trivia }
-				elseif first(state) == char(".") then
-					bump(state)
-					return { kind = "...", span = span_new(start, loc(state)), trivia = trivia }
-				end
-
-				return { kind = "..", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = ".", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("<") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = "<=", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = "<", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(">") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = ">=", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = ">", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("=") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = "==", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = "=", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("~") then
-			bump(state)
-
-			if first(state) == char("=") then
-				bump(state)
-				return { kind = "~=", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = "error", span = span_new(start, loc(state)), trivia = trivia, value = "~" }
-		elseif c == char("&") then
-			bump(state)
-			return { kind = "&", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("|") then
-			bump(state)
-			return { kind = "|", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("?") then
-			bump(state)
-			return { kind = "?", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(":") then
-			bump(state)
-
-			if first(state) == char(":") then
-				bump(state)
-				return { kind = "::", span = span_new(start, loc(state)), trivia = trivia }
-			end
-
-			return { kind = ":", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(",") then
-			bump(state)
-			return { kind = ",", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(";") then
-			bump(state)
-			return { kind = ";", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("(") then
-			bump(state)
-			return { kind = "(", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char(")") then
-			bump(state)
-			return { kind = ")", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("{") then
-			if state.braces then
-				state.braces += 1
-			end
-
-			bump(state)
-			return { kind = "{", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("}") then
-			if state.braces then
-				if state.braces == 0 then
-					bump(state)
-
-					local escaped = false
-
-					while true do
-						if first(state) == char("`") and not escaped then
-							bump(state)
-
-							local value = value(state, location_byte(start))
-							state.braces = nil
-
-							return {
-								kind = "istringlast",
-								span = span_new(start, loc(state)),
-								trivia = trivia,
-								value = value,
-							}
-						elseif first(state) == char("{") and not escaped then
-							bump(state)
-							break
-						elseif first(state) == char("\\") then
-							escaped = not escaped
-						else
-							escaped = false
-						end
-
-						bump(state)
-					end
-
-					local value = value(state, location_byte(start))
-
-					return { kind = "istringmiddle", span = span_new(start, loc(state)), trivia = trivia, value = value }
-				else
-					state.braces -= 1
-				end
-			end
-
-			bump(state)
-			return { kind = "}", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("[") then
-			bump(state)
-			return { kind = "[", span = span_new(start, loc(state)), trivia = trivia }
-		elseif c == char("]") then
-			bump(state)
-			return { kind = "]", span = span_new(start, loc(state)), trivia = trivia }
+		else
+			return { kind = "error", span = span_new(start, loc(state)), value = string.char(c), trivia = trivia }
 		end
-
-		bump(state)
-		return { kind = "error", span = span_new(start, loc(state)), trivia = trivia, value = string.char(c) }
 	end
 end
 
@@ -624,11 +838,19 @@ export type AstPair<Sep, Item> = { item: Item, sep: Sep? }
 
 export type AstSeparated<Sep, Item> = { AstPair<Sep, Item> }
 
-export type AstIString = {
+export type AstIStringSimple = {
+	kind: "simple",
+	tok: TokenIStringSimple,
+}
+
+export type AstIStringComplex = {
+	kind: "complex",
 	begin: TokenIStringBegin,
 	middle: AstSeparated<TokenIStringMiddle, AstExpr>,
 	last: TokenIStringLast,
 }
+
+export type AstIString = AstIStringSimple | AstIStringComplex
 
 export type AstTypeNil = {
 	kind: "nil",
@@ -1202,251 +1424,261 @@ local ast_span_stat: (stat: AstStat) -> Span
 local ast_span_last_stat: (stat: AstLastStat) -> Span
 local ast_span_block: (block: AstBlock) -> Span
 
-function ast_span_istring(istring: AstIString): Span
-	return span_merge(istring.begin.span, istring.last.span)
-end
-
-function ast_span_type(type: AstType): Span
-	if type.kind == "nil" or type.kind == "true" or type.kind == "false" or type.kind == "string" then
-		return type.tok.span
-	elseif type.kind == "reference" then
-		return span_merge(
-			if type.prefix then type.prefix.name.span else type.name.span,
-			if type.generics then type.generics.angles.close.span else type.name.span
-		)
-	elseif type.kind == "typeof" then
-		return span_merge(type.tok.span, ast_span_expr(type.expr))
-	elseif type.kind == "array" then
-		return span_merge(type.braces.open.span, type.braces.close.span)
-	elseif type.kind == "table" then
-		return span_merge(type.braces.open.span, type.braces.close.span)
-	elseif type.kind == "function" then
-		return span_merge(
-			if type.generics then type.generics.angles.open.span else type.parens.open.span,
-			ast_span_return_type(type.returns)
-		)
-	elseif type.kind == "paren" then
-		return span_merge(type.parens.open.span, type.parens.close.span)
-	elseif type.kind == "optional" then
-		return span_merge(ast_span_type(type.type), type.question.span)
-	elseif type.kind == "union" then
-		return span_merge(
-			if type.leading then type.leading.span else ast_span_type(type.types[1].item),
-			ast_span_type(type.types[#type.types].item)
-		)
-	elseif type.kind == "intersection" then
-		return span_merge(
-			if type.leading then type.leading.span else ast_span_type(type.types[1].item),
-			ast_span_type(type.types[#type.types].item)
-		)
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_type_table_field(field: AstTypeTableField): Span
-	if field.kind == "nameprop" then
-		return span_merge(field.key.span, ast_span_type(field.value))
-	elseif field.kind == "stringprop" then
-		return span_merge(field.bracks.open.span, ast_span_type(field.value))
-	elseif field.kind == "indexer" then
-		return span_merge(field.bracks.open.span, ast_span_type(field.value))
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_return_type(return_type: AstReturnType): Span
-	if return_type.kind == "list" or return_type.kind == "variadic" or return_type.kind == "generic" then
-		return ast_span_type_pack(return_type)
-	else
-		return ast_span_type(return_type)
-	end
-end
-
-function ast_span_type_pack(pack: AstTypePack): Span
-	if pack.kind == "list" then
-		return span_merge(pack.parens.open.span, pack.parens.close.span)
-	elseif pack.kind == "variadic" then
-		return span_merge(pack.dots.span, ast_span_type(pack.type))
-	elseif pack.kind == "generic" then
-		return span_merge(pack.name.span, pack.dots.span)
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_generic_type_list(generics: AstGenericTypeList): Span
-	return span_merge(generics.angles.open.span, generics.angles.close.span)
-end
-
-function ast_span_generic_type_list_with_defaults(generics: AstGenericTypeListWithDefaults): Span
-	return span_merge(generics.angles.open.span, generics.angles.close.span)
-end
-
-function ast_span_binding(binding: AstBinding): Span
-	if binding.type then
-		return span_merge(binding.name.span, ast_span_type(binding.type.type))
-	else
-		return binding.name.span
-	end
-end
-
-function ast_span_expr(expr: AstExpr): Span
-	if
-		expr.kind == "nil"
-		or expr.kind == "boolean"
-		or expr.kind == "number"
-		or expr.kind == "string"
-		or expr.kind == "varargs"
-	then
-		return expr.tok.span
-	elseif expr.kind == "istring" then
-		return ast_span_istring(expr.istring)
-	elseif expr.kind == "table" then
-		return ast_span_table(expr.table)
-	elseif expr.kind == "function" then
-		return span_merge(expr.function_tok.span, ast_span_function_body(expr.body))
-	elseif expr.kind == "ifelse" then
-		return span_merge(expr.if_tok.span, ast_span_expr(expr.else_expr))
-	elseif expr.kind == "var" then
-		return ast_span_var(expr.var)
-	elseif expr.kind == "assertion" then
-		return span_merge(ast_span_expr(expr.expr), ast_span_type(expr.type))
-	elseif expr.kind == "unary" then
-		return span_merge(expr.op.span, ast_span_expr(expr.rhs))
-	elseif expr.kind == "binary" then
-		return span_merge(ast_span_expr(expr.lhs), ast_span_expr(expr.rhs))
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_var(var: AstVar): Span
-	if var.kind == "name" then
-		return var.tok.span
-	elseif var.kind == "expr" then
-		return span_merge(var.parens.open.span, var.parens.close.span)
-	elseif var.kind == "indexname" then
-		return span_merge(ast_span_var(var.lhs), var.name.span)
-	elseif var.kind == "indexexpr" then
-		return span_merge(ast_span_var(var.lhs), var.bracks.close.span)
-	elseif var.kind == "call" then
-		return ast_span_function_call(var.call)
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_function_call(call: AstFunctionCall): Span
-	return span_merge(ast_span_var(call.lhs), ast_span_function_args(call.args))
-end
-
-function ast_span_function_args(args: AstFunctionArgs): Span
-	if args.kind == "exprlist" then
-		return span_merge(args.parens.open.span, args.parens.close.span)
-	elseif args.kind == "table" then
-		return ast_span_table(args.table)
-	elseif args.kind == "string" then
-		return args.tok.span
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_table(table: AstTable): Span
-	return span_merge(table.braces.open.span, table.braces.close.span)
-end
-
-function ast_span_table_field(field: AstTableField): Span
-	if field.kind == "exprkey" then
-		return span_merge(field.bracks.open.span, ast_span_expr(field.value))
-	elseif field.kind == "namekey" then
-		return span_merge(field.key.span, ast_span_expr(field.value))
-	elseif field.kind == "nokey" then
-		return ast_span_expr(field.value)
-	else
-		error("unreachable")
-	end
-end
-
-function ast_span_function_body(body: AstFunctionBody): Span
-	return span_merge(
-		if body.generics then body.generics.angles.open.span else body.parens.open.span,
-		body.end_tok.span
-	)
-end
-
-function ast_span_stat(stat: AstStat): Span
-	if stat.kind == "assign" then
-		return span_merge(ast_span_var(stat.lhs[1].item), ast_span_expr(stat.rhs[#stat.rhs].item))
-	elseif stat.kind == "compoundassign" then
-		return span_merge(ast_span_var(stat.lhs), ast_span_expr(stat.rhs))
-	elseif stat.kind == "call" then
-		return ast_span_function_call(stat.call)
-	elseif stat.kind == "do" then
-		return span_merge(stat.do_tok.span, stat.end_tok.span)
-	elseif stat.kind == "while" then
-		return span_merge(stat.while_tok.span, stat.end_tok.span)
-	elseif stat.kind == "repeat" then
-		return span_merge(stat.repeat_tok.span, ast_span_expr(stat.condition))
-	elseif stat.kind == "if" then
-		return span_merge(stat.if_tok.span, stat.end_tok.span)
-	elseif stat.kind == "numericfor" then
-		return span_merge(stat.for_tok.span, stat.end_tok.span)
-	elseif stat.kind == "genericfor" then
-		return span_merge(stat.for_tok.span, stat.end_tok.span)
-	elseif stat.kind == "function" then
-		return span_merge(stat.function_tok.span, ast_span_function_body(stat.body))
-	elseif stat.kind == "localfunction" then
-		return span_merge(stat.local_tok.span, ast_span_function_body(stat.body))
-	elseif stat.kind == "localassign" then
-		if stat.values then
-			return span_merge(stat.local_tok.span, ast_span_expr(stat.values.exprs[#stat.values.exprs].item))
+do
+	function ast_span_istring(istring: AstIString): Span
+		if istring.kind == "simple" then
+			return istring.tok.span
+		elseif istring.kind == "complex" then
+			return span_merge(istring.begin.span, istring.last.span)
 		else
-			local last_binding = stat.bindings[#stat.bindings].item
-
-			if last_binding.type then
-				return span_merge(stat.local_tok.span, ast_span_type(last_binding.type.type))
-			else
-				return span_merge(stat.local_tok.span, last_binding.name.span)
-			end
+			error("unreachable")
 		end
-	elseif stat.kind == "type" then
+	end
+
+	function ast_span_type(type: AstType): Span
+		if type.kind == "nil" or type.kind == "true" or type.kind == "false" or type.kind == "string" then
+			return type.tok.span
+		elseif type.kind == "reference" then
+			return span_merge(
+				if type.prefix then type.prefix.name.span else type.name.span,
+				if type.generics then type.generics.angles.close.span else type.name.span
+			)
+		elseif type.kind == "typeof" then
+			return span_merge(type.tok.span, ast_span_expr(type.expr))
+		elseif type.kind == "array" then
+			return span_merge(type.braces.open.span, type.braces.close.span)
+		elseif type.kind == "table" then
+			return span_merge(type.braces.open.span, type.braces.close.span)
+		elseif type.kind == "function" then
+			return span_merge(
+				if type.generics then type.generics.angles.open.span else type.parens.open.span,
+				ast_span_return_type(type.returns)
+			)
+		elseif type.kind == "paren" then
+			return span_merge(type.parens.open.span, type.parens.close.span)
+		elseif type.kind == "optional" then
+			return span_merge(ast_span_type(type.type), type.question.span)
+		elseif type.kind == "union" then
+			return span_merge(
+				if type.leading then type.leading.span else ast_span_type(type.types[1].item),
+				ast_span_type(type.types[#type.types].item)
+			)
+		elseif type.kind == "intersection" then
+			return span_merge(
+				if type.leading then type.leading.span else ast_span_type(type.types[1].item),
+				ast_span_type(type.types[#type.types].item)
+			)
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_type_table_field(field: AstTypeTableField): Span
+		if field.kind == "nameprop" then
+			return span_merge(field.key.span, ast_span_type(field.value))
+		elseif field.kind == "stringprop" then
+			return span_merge(field.bracks.open.span, ast_span_type(field.value))
+		elseif field.kind == "indexer" then
+			return span_merge(field.bracks.open.span, ast_span_type(field.value))
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_return_type(return_type: AstReturnType): Span
+		if return_type.kind == "list" or return_type.kind == "variadic" or return_type.kind == "generic" then
+			return ast_span_type_pack(return_type)
+		else
+			return ast_span_type(return_type)
+		end
+	end
+
+	function ast_span_type_pack(pack: AstTypePack): Span
+		if pack.kind == "list" then
+			return span_merge(pack.parens.open.span, pack.parens.close.span)
+		elseif pack.kind == "variadic" then
+			return span_merge(pack.dots.span, ast_span_type(pack.type))
+		elseif pack.kind == "generic" then
+			return span_merge(pack.name.span, pack.dots.span)
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_generic_type_list(generics: AstGenericTypeList): Span
+		return span_merge(generics.angles.open.span, generics.angles.close.span)
+	end
+
+	function ast_span_generic_type_list_with_defaults(generics: AstGenericTypeListWithDefaults): Span
+		return span_merge(generics.angles.open.span, generics.angles.close.span)
+	end
+
+	function ast_span_binding(binding: AstBinding): Span
+		if binding.type then
+			return span_merge(binding.name.span, ast_span_type(binding.type.type))
+		else
+			return binding.name.span
+		end
+	end
+
+	function ast_span_expr(expr: AstExpr): Span
+		if
+			expr.kind == "nil"
+			or expr.kind == "boolean"
+			or expr.kind == "number"
+			or expr.kind == "string"
+			or expr.kind == "varargs"
+		then
+			return expr.tok.span
+		elseif expr.kind == "istring" then
+			return ast_span_istring(expr.istring)
+		elseif expr.kind == "table" then
+			return ast_span_table(expr.table)
+		elseif expr.kind == "function" then
+			return span_merge(expr.function_tok.span, ast_span_function_body(expr.body))
+		elseif expr.kind == "ifelse" then
+			return span_merge(expr.if_tok.span, ast_span_expr(expr.else_expr))
+		elseif expr.kind == "var" then
+			return ast_span_var(expr.var)
+		elseif expr.kind == "assertion" then
+			return span_merge(ast_span_expr(expr.expr), ast_span_type(expr.type))
+		elseif expr.kind == "unary" then
+			return span_merge(expr.op.span, ast_span_expr(expr.rhs))
+		elseif expr.kind == "binary" then
+			return span_merge(ast_span_expr(expr.lhs), ast_span_expr(expr.rhs))
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_var(var: AstVar): Span
+		if var.kind == "name" then
+			return var.tok.span
+		elseif var.kind == "expr" then
+			return span_merge(var.parens.open.span, var.parens.close.span)
+		elseif var.kind == "indexname" then
+			return span_merge(ast_span_var(var.lhs), var.name.span)
+		elseif var.kind == "indexexpr" then
+			return span_merge(ast_span_var(var.lhs), var.bracks.close.span)
+		elseif var.kind == "call" then
+			return ast_span_function_call(var.call)
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_function_call(call: AstFunctionCall): Span
+		return span_merge(ast_span_var(call.lhs), ast_span_function_args(call.args))
+	end
+
+	function ast_span_function_args(args: AstFunctionArgs): Span
+		if args.kind == "exprlist" then
+			return span_merge(args.parens.open.span, args.parens.close.span)
+		elseif args.kind == "table" then
+			return ast_span_table(args.table)
+		elseif args.kind == "string" then
+			return args.tok.span
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_table(table: AstTable): Span
+		return span_merge(table.braces.open.span, table.braces.close.span)
+	end
+
+	function ast_span_table_field(field: AstTableField): Span
+		if field.kind == "exprkey" then
+			return span_merge(field.bracks.open.span, ast_span_expr(field.value))
+		elseif field.kind == "namekey" then
+			return span_merge(field.key.span, ast_span_expr(field.value))
+		elseif field.kind == "nokey" then
+			return ast_span_expr(field.value)
+		else
+			error("unreachable")
+		end
+	end
+
+	function ast_span_function_body(body: AstFunctionBody): Span
 		return span_merge(
-			if stat.export_tok then stat.export_tok.span else stat.type_tok.span,
-			ast_span_type(stat.type)
+			if body.generics then body.generics.angles.open.span else body.parens.open.span,
+			body.end_tok.span
 		)
-	else
-		error("unreachable")
 	end
-end
 
-function ast_span_last_stat(stat: AstLastStat): Span
-	if stat.kind == "return" then
-		return span_merge(stat.return_tok.span, ast_span_expr(stat.exprs[#stat.exprs].item))
-	elseif stat.kind == "break" then
-		return stat.tok.span
-	elseif stat.kind == "continue" then
-		return stat.tok.span
-	else
-		error("unreachable")
+	function ast_span_stat(stat: AstStat): Span
+		if stat.kind == "assign" then
+			return span_merge(ast_span_var(stat.lhs[1].item), ast_span_expr(stat.rhs[#stat.rhs].item))
+		elseif stat.kind == "compoundassign" then
+			return span_merge(ast_span_var(stat.lhs), ast_span_expr(stat.rhs))
+		elseif stat.kind == "call" then
+			return ast_span_function_call(stat.call)
+		elseif stat.kind == "do" then
+			return span_merge(stat.do_tok.span, stat.end_tok.span)
+		elseif stat.kind == "while" then
+			return span_merge(stat.while_tok.span, stat.end_tok.span)
+		elseif stat.kind == "repeat" then
+			return span_merge(stat.repeat_tok.span, ast_span_expr(stat.condition))
+		elseif stat.kind == "if" then
+			return span_merge(stat.if_tok.span, stat.end_tok.span)
+		elseif stat.kind == "numericfor" then
+			return span_merge(stat.for_tok.span, stat.end_tok.span)
+		elseif stat.kind == "genericfor" then
+			return span_merge(stat.for_tok.span, stat.end_tok.span)
+		elseif stat.kind == "function" then
+			return span_merge(stat.function_tok.span, ast_span_function_body(stat.body))
+		elseif stat.kind == "localfunction" then
+			return span_merge(stat.local_tok.span, ast_span_function_body(stat.body))
+		elseif stat.kind == "localassign" then
+			if stat.values then
+				return span_merge(stat.local_tok.span, ast_span_expr(stat.values.exprs[#stat.values.exprs].item))
+			else
+				local last_binding = stat.bindings[#stat.bindings].item
+
+				if last_binding.type then
+					return span_merge(stat.local_tok.span, ast_span_type(last_binding.type.type))
+				else
+					return span_merge(stat.local_tok.span, last_binding.name.span)
+				end
+			end
+		elseif stat.kind == "type" then
+			return span_merge(
+				if stat.export_tok then stat.export_tok.span else stat.type_tok.span,
+				ast_span_type(stat.type)
+			)
+		else
+			error("unreachable")
+		end
 	end
-end
 
-function ast_span_block(block: AstBlock): Span
-	local last_stat = block.laststat
+	function ast_span_last_stat(stat: AstLastStat): Span
+		if stat.kind == "return" then
+			return span_merge(stat.return_tok.span, ast_span_expr(stat.exprs[#stat.exprs].item))
+		elseif stat.kind == "break" then
+			return stat.tok.span
+		elseif stat.kind == "continue" then
+			return stat.tok.span
+		else
+			error("unreachable")
+		end
+	end
 
-	if last_stat then
-		return span_merge(ast_span_stat(block.stats[1].stat), ast_span_last_stat(last_stat.stat))
-	else
-		return span_merge(ast_span_stat(block.stats[1].stat), ast_span_stat(block.stats[#block.stats].stat))
+	function ast_span_block(block: AstBlock): Span
+		local last_stat = block.laststat
+
+		if last_stat then
+			return span_merge(ast_span_stat(block.stats[1].stat), ast_span_last_stat(last_stat.stat))
+		else
+			return span_merge(ast_span_stat(block.stats[1].stat), ast_span_stat(block.stats[#block.stats].stat))
+		end
 	end
 end
 
 export type Visitor<Self> = {
 	visit_token: (self: Self, token: Token) -> (),
 
+	visit_istring_simple: (self: Self, istring: AstIStringSimple) -> (),
+	visit_istring_complex: (self: Self, istring: AstIStringComplex) -> (),
 	visit_istring: (self: Self, istring: AstIString) -> (),
 
 	visit_type_nil: (self: Self, type: AstTypeNil) -> (),
@@ -1554,6 +1786,8 @@ local function visitor_new<Self>(): Visitor<Self>
 	return {
 		visit_token = noop,
 
+		visit_istring_simple = noop,
+		visit_istring_complex = noop,
 		visit_istring = noop,
 
 		visit_type_nil = noop,
@@ -1679,19 +1913,25 @@ do
 	function visit_istring<Self>(self: Self, visitor: Visitor<Self>, istring: AstIString)
 		visitor.visit_istring(self, istring)
 
-		visitor.visit_token(self, istring.begin)
+		if istring.kind == "simple" then
+			visitor.visit_istring_simple(self, istring)
+			visitor.visit_token(self, istring.tok)
+		elseif istring.kind == "complex" then
+			visitor.visit_istring_complex(self, istring)
+			visitor.visit_token(self, istring.begin)
 
-		for _, pair in istring.middle do
-			local item, sep = pair.item, pair.sep
+			for _, pair in istring.middle do
+				local item, sep = pair.item, pair.sep
 
-			visit_expr(self, visitor, item)
+				visit_expr(self, visitor, item)
 
-			if sep then
-				visitor.visit_token(self, sep)
+				if sep then
+					visitor.visit_token(self, sep)
+				end
 			end
-		end
 
-		visitor.visit_token(self, istring.last)
+			visitor.visit_token(self, istring.last)
+		end
 	end
 
 	function visit_type<Self>(self: Self, visitor: Visitor<Self>, type: AstType)
@@ -2531,27 +2771,35 @@ do
 	end
 
 	function parse_istring(state: State): AstIString
-		local begin = state_expect(state, "istringbegin") :: TokenIStringBegin
-		local middle: AstSeparated<TokenIStringMiddle, AstExpr> = {}
+		if state_current(state).kind == "istringsimple" then
+			return {
+				kind = "simple",
+				tok = state_consume(state) :: TokenIStringSimple,
+			}
+		else
+			local begin = state_expect(state, "istringbegin") :: TokenIStringBegin
+			local middle: AstSeparated<TokenIStringMiddle, AstExpr> = {}
 
-		while true do
-			local expr = parse_expr(state)
+			while true do
+				local expr = parse_expr(state)
 
-			if state_current(state).kind == "istringmiddle" then
-				table.insert(middle, { item = expr, sep = state_consume(state) :: TokenIStringMiddle })
-			else
-				table.insert(middle, { item = expr, sep = nil })
-				break
+				if state_current(state).kind == "istringmiddle" then
+					table.insert(middle, { item = expr, sep = state_consume(state) :: TokenIStringMiddle })
+				else
+					table.insert(middle, { item = expr, sep = nil })
+					break
+				end
 			end
+
+			local last = state_expect(state, "istringlast") :: TokenIStringLast
+
+			return {
+				kind = "complex",
+				begin = begin,
+				middle = middle,
+				last = last,
+			}
 		end
-
-		local last = state_expect(state, "istringlast") :: TokenIStringLast
-
-		return {
-			begin = begin,
-			middle = middle,
-			last = last,
-		}
 	end
 
 	do
@@ -2999,6 +3247,8 @@ do
 
 				if state_current(state).kind ~= ")" then
 					params, tail = parse_function_type_params(state)
+				else
+					params = {}
 				end
 
 				local close = state_expect(state, ")") :: TokenType<")">
@@ -3537,7 +3787,7 @@ do
 						call = parse_function_call(state, var),
 					}
 				end
-			elseif current.kind == ":" then
+			elseif current.kind == ":" or current.kind == "{" or current.kind == "string" then
 				var = {
 					kind = "call",
 					call = parse_function_call(state, var),
@@ -3579,7 +3829,17 @@ do
 
 					if state_current(state).kind == ":" then
 						local colon = state_consume(state) :: TokenType<":">
-						local type = parse_type(state)
+						local type: AstTypePackGeneric | AstType
+
+						if state_current(state).kind == "ident" and state_lookahead(state).kind == "..." then
+							type = {
+								kind = "generic",
+								name = state_consume(state) :: TokenIdent,
+								dots = state_consume(state) :: TokenType<"...">,
+							}
+						else
+							type = parse_type(state)
+						end
 
 						varargs = { dots = dots, type = { colon = colon, type = type } }
 					else
@@ -4215,6 +4475,9 @@ local function ast_parse(input: string): { success: true, ast: Ast } | { success
 		line = 1,
 		char = 0,
 
+		brace_count = 0,
+		brace_stack = {},
+
 		current = nil,
 		lookahead = nil,
 	})
@@ -4293,15 +4556,15 @@ do
 end
 
 return {
+	visitor = visitor_new,
+
 	location = {
-		new = location_new,
 		byte = location_byte,
 		line = location_line,
 		char = location_char,
 	},
 
 	span = {
-		new = span_new,
 		start = span_start,
 		finish = span_finish,
 		merge = span_merge,
