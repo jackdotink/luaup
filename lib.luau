@@ -34,9 +34,7 @@ local function span_merge(span1: Span, span2: Span): Span
 	return span_new(span_start(span1), span_finish(span2))
 end
 
-export type TokenTrivia =
-	{ kind: "whitespace", span: Span, value: string }
-	| { kind: "comment", span: Span, value: string }
+export type TokenTrivia = { kind: "whitespace", span: Span, value: string } | { kind: "comment", span: Span, value: string }
 
 export type TokenType<Kind> = { kind: Kind, span: Span, trivia: { TokenTrivia } }
 
@@ -162,12 +160,7 @@ do
 	end
 
 	local function is_whitespace(c: number): boolean
-		return c == char(" ")
-			or c == char("\t")
-			or c == char("\n")
-			or c == char("\r")
-			or c == char("\v")
-			or c == char("\f")
+		return c == char(" ") or c == char("\t") or c == char("\n") or c == char("\r") or c == char("\v") or c == char("\f")
 	end
 
 	local function is_digit(c: number): boolean
@@ -374,51 +367,24 @@ do
 
 			return { kind = "ident", span = span_new(start, finish), value = value, trivia = trivia }
 		elseif is_digit(c) or (c == char(".") and is_digit(second(state))) then
+			local base = 10
+
 			if c == char("0") then
-				bump(state)
-				c = first(state)
+				local b = second(state)
 
-				if c == char("x") or c == char("X") then
+				if b == char("x") or b == char("X") then
+					base = 16
 					bump(state)
-					c = first(state)
-
-					while
-						is_digit(c)
-						or (char("a") <= c and c <= char("f"))
-						or (char("A") <= c and c <= char("F"))
-						or c == char("_")
-					do
-						bump(state)
-						c = first(state)
-					end
-
-					local finish = loc(state)
-					local value = value(state, start.byte)
-
-					return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
-				elseif c == char("b") or c == char("B") then
+				elseif b == char("b") or b == char("B") then
+					base = 2
 					bump(state)
-					c = first(state)
-
-					while c == char("0") or c == char("1") or c == char("_") do
-						bump(state)
-						c = first(state)
-					end
-
-					local finish = loc(state)
-					local value = value(state, start.byte)
-
-					return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
 				end
 			end
 
-			local had_dot = c == char(".")
+			bump(state)
+			c = first(state)
 
-			while is_digit(c) or c == char("_") or (not had_dot and c == char(".")) do
-				if c == char(".") then
-					had_dot = true
-				end
-
+			while is_digit(c) or c == char(".") or c == char("_") do
 				bump(state)
 				c = first(state)
 			end
@@ -431,17 +397,21 @@ do
 					bump(state)
 					c = first(state)
 				end
-
-				while is_digit(c) or c == char("_") do
-					bump(state)
-					c = first(state)
-				end
 			end
 
-			local finish = loc(state)
-			local value = value(state, start.byte)
+			while is_digit(c) or is_alpha(c) or c == char("_") do
+				bump(state)
+				c = first(state)
+			end
 
-			return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
+			local value = if base == 10 then value(state, start.byte) else value(state, start.byte + 2)
+			local finish = loc(state)
+
+			if tonumber(string.gsub(value, "_", ""), base) then
+				return { kind = "number", span = span_new(start, finish), value = value, trivia = trivia }
+			else
+				return { kind = "error", span = span_new(start, finish), value = value, trivia = trivia }
+			end
 		elseif c == char('"') or c == char("'") then
 			local quote = c
 			bump(state)
@@ -652,6 +622,7 @@ do
 							end
 
 							if count == eqs and first(state) == char("]") then
+								bump(state)
 								break
 							else
 								bump(state)
@@ -934,7 +905,7 @@ export type AstTypeFunction = {
 		name: { name: TokenIdent, colon: TokenType<":"> }?,
 		type: AstType,
 	}>,
-	tail: (AstTypePackVariadic | AstTypePackGeneric)?,
+	tail: AstTypePackTail?,
 	arrow: TokenType<"->">,
 	returns: AstReturnType,
 }
@@ -980,13 +951,6 @@ export type AstType =
 
 export type AstReturnType = AstType | AstTypePack
 
-export type AstTypePackList = {
-	kind: "list",
-	parens: AstDelim<"(", ")">,
-	types: AstSeparated<TokenType<",">, AstType>,
-	tail: (AstTypePackVariadic | AstTypePackGeneric)?,
-}
-
 export type AstTypePackVariadic = {
 	kind: "variadic",
 	dots: TokenType<"...">,
@@ -997,6 +961,15 @@ export type AstTypePackGeneric = {
 	kind: "generic",
 	name: TokenIdent,
 	dots: TokenType<"...">,
+}
+
+export type AstTypePackTail = AstTypePackVariadic | AstTypePackGeneric
+
+export type AstTypePackList = {
+	kind: "list",
+	parens: AstDelim<"(", ")">,
+	types: AstSeparated<TokenType<",">, AstType>,
+	tail: AstTypePackTail?,
 }
 
 export type AstTypePack = AstTypePackList | AstTypePackVariadic | AstTypePackGeneric
@@ -1421,7 +1394,7 @@ local ast_span_table: (table: AstTable) -> Span
 local ast_span_table_field: (field: AstTableField) -> Span
 local ast_span_function_body: (body: AstFunctionBody) -> Span
 local ast_span_stat: (stat: AstStat) -> Span
-local ast_span_last_stat: (stat: AstLastStat) -> Span
+local ast_span_laststat: (stat: AstLastStat) -> Span
 local ast_span_block: (block: AstBlock) -> Span
 
 do
@@ -1600,10 +1573,7 @@ do
 	end
 
 	function ast_span_function_body(body: AstFunctionBody): Span
-		return span_merge(
-			if body.generics then body.generics.angles.open.span else body.parens.open.span,
-			body.end_tok.span
-		)
+		return span_merge(if body.generics then body.generics.angles.open.span else body.parens.open.span, body.end_tok.span)
 	end
 
 	function ast_span_stat(stat: AstStat): Span
@@ -1642,16 +1612,13 @@ do
 				end
 			end
 		elseif stat.kind == "type" then
-			return span_merge(
-				if stat.export_tok then stat.export_tok.span else stat.type_tok.span,
-				ast_span_type(stat.type)
-			)
+			return span_merge(if stat.export_tok then stat.export_tok.span else stat.type_tok.span, ast_span_type(stat.type))
 		else
 			error("unreachable")
 		end
 	end
 
-	function ast_span_last_stat(stat: AstLastStat): Span
+	function ast_span_laststat(stat: AstLastStat): Span
 		if stat.kind == "return" then
 			return span_merge(stat.return_tok.span, ast_span_expr(stat.exprs[#stat.exprs].item))
 		elseif stat.kind == "break" then
@@ -1664,10 +1631,10 @@ do
 	end
 
 	function ast_span_block(block: AstBlock): Span
-		local last_stat = block.laststat
+		local laststat = block.laststat
 
-		if last_stat then
-			return span_merge(ast_span_stat(block.stats[1].stat), ast_span_last_stat(last_stat.stat))
+		if laststat then
+			return span_merge(ast_span_stat(block.stats[1].stat), ast_span_laststat(laststat.stat))
 		else
 			return span_merge(ast_span_stat(block.stats[1].stat), ast_span_stat(block.stats[#block.stats].stat))
 		end
@@ -1675,1023 +1642,1323 @@ do
 end
 
 export type Visitor<Self> = {
-	visit_token: (self: Self, token: Token) -> (),
+	token: (self: Self, token: Token) -> (),
 
-	visit_istring_simple: (self: Self, istring: AstIStringSimple) -> (),
-	visit_istring_complex: (self: Self, istring: AstIStringComplex) -> (),
-	visit_istring: (self: Self, istring: AstIString) -> (),
+	istring_simple: (self: Self, istring: AstIStringSimple) -> AstIStringSimple,
+	istring_simple_end: (self: Self, istring: AstIStringSimple) -> AstIStringSimple,
+	istring_complex: (self: Self, istring: AstIStringComplex) -> AstIStringComplex,
+	istring_complex_end: (self: Self, istring: AstIStringComplex) -> AstIStringComplex,
+	istring: (self: Self, istring: AstIString) -> AstIString,
+	istring_end: (self: Self, istring: AstIString) -> AstIString,
 
-	visit_type_nil: (self: Self, type: AstTypeNil) -> (),
-	visit_type_true: (self: Self, type: AstTypeTrue) -> (),
-	visit_type_false: (self: Self, type: AstTypeFalse) -> (),
-	visit_type_string: (self: Self, type: AstTypeString) -> (),
-	visit_type_reference: (self: Self, type: AstTypeReference) -> (),
-	visit_type_typeof: (self: Self, type: AstTypeTypeof) -> (),
-	visit_type_array: (self: Self, type: AstTypeArray) -> (),
-	visit_type_table: (self: Self, type: AstTypeTable) -> (),
-	visit_type_function: (self: Self, type: AstTypeFunction) -> (),
-	visit_type_paren: (self: Self, type: AstTypeParen) -> (),
-	visit_type_optional: (self: Self, type: AstTypeOptional) -> (),
-	visit_type_union: (self: Self, type: AstTypeUnion) -> (),
-	visit_type_intersection: (self: Self, type: AstTypeIntersection) -> (),
-	visit_type: (self: Self, type: AstType) -> (),
+	type_nil: (self: Self, type: AstTypeNil) -> AstTypeNil,
+	type_nil_end: (self: Self, type: AstTypeNil) -> AstTypeNil,
+	type_true: (self: Self, type: AstTypeTrue) -> AstTypeTrue,
+	type_true_end: (self: Self, type: AstTypeTrue) -> AstTypeTrue,
+	type_false: (self: Self, type: AstTypeFalse) -> AstTypeFalse,
+	type_false_end: (self: Self, type: AstTypeFalse) -> AstTypeFalse,
+	type_string: (self: Self, type: AstTypeString) -> AstTypeString,
+	type_string_end: (self: Self, type: AstTypeString) -> AstTypeString,
+	type_reference: (self: Self, type: AstTypeReference) -> AstTypeReference,
+	type_reference_end: (self: Self, type: AstTypeReference) -> AstTypeReference,
+	type_typeof: (self: Self, type: AstTypeTypeof) -> AstTypeTypeof,
+	type_typeof_end: (self: Self, type: AstTypeTypeof) -> AstTypeTypeof,
+	type_array: (self: Self, type: AstTypeArray) -> AstTypeArray,
+	type_array_end: (self: Self, type: AstTypeArray) -> AstTypeArray,
+	type_table: (self: Self, type: AstTypeTable) -> AstTypeTable,
+	type_table_end: (self: Self, type: AstTypeTable) -> AstTypeTable,
+	type_function: (self: Self, type: AstTypeFunction) -> AstTypeFunction,
+	type_function_end: (self: Self, type: AstTypeFunction) -> AstTypeFunction,
+	type_paren: (self: Self, type: AstTypeParen) -> AstTypeParen,
+	type_paren_end: (self: Self, type: AstTypeParen) -> AstTypeParen,
+	type_optional: (self: Self, type: AstTypeOptional) -> AstTypeOptional,
+	type_optional_end: (self: Self, type: AstTypeOptional) -> AstTypeOptional,
+	type_union: (self: Self, type: AstTypeUnion) -> AstTypeUnion,
+	type_union_end: (self: Self, type: AstTypeUnion) -> AstTypeUnion,
+	type_intersection: (self: Self, type: AstTypeIntersection) -> AstTypeIntersection,
+	type_intersection_end: (self: Self, type: AstTypeIntersection) -> AstTypeIntersection,
+	type: (self: Self, type: AstType) -> AstType,
+	type_end: (self: Self, type: AstType) -> AstType,
 
-	visit_type_table_field_name_prop: (self: Self, field: AstTypeTableFieldNameProp) -> (),
-	visit_type_table_field_string_prop: (self: Self, field: AstTypeTableFieldStringProp) -> (),
-	visit_type_table_field_indexer: (self: Self, field: AstTypeTableFieldIndexer) -> (),
-	visit_type_table_field: (self: Self, field: AstTypeTableField) -> (),
+	type_table_field_name_prop: (self: Self, field: AstTypeTableFieldNameProp) -> AstTypeTableFieldNameProp,
+	type_table_field_name_prop_end: (self: Self, field: AstTypeTableFieldNameProp) -> AstTypeTableFieldNameProp,
+	type_table_field_string_prop: (self: Self, field: AstTypeTableFieldStringProp) -> AstTypeTableFieldStringProp,
+	type_table_field_string_prop_end: (self: Self, field: AstTypeTableFieldStringProp) -> AstTypeTableFieldStringProp,
+	type_table_field_indexer: (self: Self, field: AstTypeTableFieldIndexer) -> AstTypeTableFieldIndexer,
+	type_table_field_indexer_end: (self: Self, field: AstTypeTableFieldIndexer) -> AstTypeTableFieldIndexer,
+	type_table_field: (self: Self, field: AstTypeTableField) -> AstTypeTableField,
+	type_table_field_end: (self: Self, field: AstTypeTableField) -> AstTypeTableField,
 
-	visit_return_type: (self: Self, type: AstReturnType) -> (),
+	return_type: (self: Self, type: AstReturnType) -> AstReturnType,
+	return_type_end: (self: Self, type: AstReturnType) -> AstReturnType,
 
-	visit_type_pack_list: (self: Self, pack: AstTypePackList) -> (),
-	visit_type_pack_variadic: (self: Self, pack: AstTypePackVariadic) -> (),
-	visit_type_pack_generic: (self: Self, pack: AstTypePackGeneric) -> (),
-	visit_type_pack: (self: Self, pack: AstTypePack) -> (),
+	type_pack_list: (self: Self, pack: AstTypePackList) -> AstTypePackList,
+	type_pack_list_end: (self: Self, pack: AstTypePackList) -> AstTypePackList,
+	type_pack_variadic: (self: Self, pack: AstTypePackVariadic) -> AstTypePackVariadic,
+	type_pack_variadic_end: (self: Self, pack: AstTypePackVariadic) -> AstTypePackVariadic,
+	type_pack_generic: (self: Self, pack: AstTypePackGeneric) -> AstTypePackGeneric,
+	type_pack_generic_end: (self: Self, pack: AstTypePackGeneric) -> AstTypePackGeneric,
+	type_pack_tail: (self: Self, pack: AstTypePackTail) -> AstTypePackTail,
+	type_pack_tail_end: (self: Self, pack: AstTypePackTail) -> AstTypePackTail,
+	type_pack: (self: Self, pack: AstTypePack) -> AstTypePack,
+	type_pack_end: (self: Self, pack: AstTypePack) -> AstTypePack,
 
-	visit_generic_type_list: (self: Self, generics: AstGenericTypeList) -> (),
-	visit_generic_type_list_with_defaults: (self: Self, generics: AstGenericTypeListWithDefaults) -> (),
+	generic_type_list: (self: Self, generics: AstGenericTypeList) -> AstGenericTypeList,
+	generic_type_list_end: (self: Self, generics: AstGenericTypeList) -> AstGenericTypeList,
+	generic_type_list_with_defaults: (self: Self, generics: AstGenericTypeListWithDefaults) -> AstGenericTypeListWithDefaults,
+	generic_type_list_with_defaults_end: (self: Self, generics: AstGenericTypeListWithDefaults) -> AstGenericTypeListWithDefaults,
 
-	visit_binding: (self: Self, binding: AstBinding) -> (),
+	binding: (self: Self, binding: AstBinding) -> AstBinding,
+	binding_end: (self: Self, binding: AstBinding) -> AstBinding,
 
-	visit_expr_nil: (self: Self, expr: AstExprNil) -> (),
-	visit_expr_boolean: (self: Self, expr: AstExprBoolean) -> (),
-	visit_expr_number: (self: Self, expr: AstExprNumber) -> (),
-	visit_expr_string: (self: Self, expr: AstExprString) -> (),
-	visit_expr_varargs: (self: Self, expr: AstExprVarargs) -> (),
-	visit_expr_istring: (self: Self, expr: AstExprIString) -> (),
-	visit_expr_table: (self: Self, expr: AstExprTable) -> (),
-	visit_expr_function: (self: Self, expr: AstExprFunction) -> (),
-	visit_expr_ifelse: (self: Self, expr: AstExprIfElse) -> (),
-	visit_expr_var: (self: Self, expr: AstExprVar) -> (),
-	visit_expr_assertion: (self: Self, expr: AstExprAssertion) -> (),
-	visit_expr_unary: (self: Self, expr: AstExprUnary) -> (),
-	visit_expr_binary: (self: Self, expr: AstExprBinary) -> (),
-	visit_expr: (self: Self, expr: AstExpr) -> (),
+	expr_nil: (self: Self, expr: AstExprNil) -> AstExprNil,
+	expr_nil_end: (self: Self, expr: AstExprNil) -> AstExprNil,
+	expr_boolean: (self: Self, expr: AstExprBoolean) -> AstExprBoolean,
+	expr_boolean_end: (self: Self, expr: AstExprBoolean) -> AstExprBoolean,
+	expr_number: (self: Self, expr: AstExprNumber) -> AstExprNumber,
+	expr_number_end: (self: Self, expr: AstExprNumber) -> AstExprNumber,
+	expr_string: (self: Self, expr: AstExprString) -> AstExprString,
+	expr_string_end: (self: Self, expr: AstExprString) -> AstExprString,
+	expr_varargs: (self: Self, expr: AstExprVarargs) -> AstExprVarargs,
+	expr_varargs_end: (self: Self, expr: AstExprVarargs) -> AstExprVarargs,
+	expr_istring: (self: Self, expr: AstExprIString) -> AstExprIString,
+	expr_istring_end: (self: Self, expr: AstExprIString) -> AstExprIString,
+	expr_table: (self: Self, expr: AstExprTable) -> AstExprTable,
+	expr_table_end: (self: Self, expr: AstExprTable) -> AstExprTable,
+	expr_function: (self: Self, expr: AstExprFunction) -> AstExprFunction,
+	expr_function_end: (self: Self, expr: AstExprFunction) -> AstExprFunction,
+	expr_ifelse: (self: Self, expr: AstExprIfElse) -> AstExprIfElse,
+	expr_ifelse_end: (self: Self, expr: AstExprIfElse) -> AstExprIfElse,
+	expr_var: (self: Self, expr: AstExprVar) -> AstExprVar,
+	expr_var_end: (self: Self, expr: AstExprVar) -> AstExprVar,
+	expr_assertion: (self: Self, expr: AstExprAssertion) -> AstExprAssertion,
+	expr_assertion_end: (self: Self, expr: AstExprAssertion) -> AstExprAssertion,
+	expr_unary: (self: Self, expr: AstExprUnary) -> AstExprUnary,
+	expr_unary_end: (self: Self, expr: AstExprUnary) -> AstExprUnary,
+	expr_binary: (self: Self, expr: AstExprBinary) -> AstExprBinary,
+	expr_binary_end: (self: Self, expr: AstExprBinary) -> AstExprBinary,
+	expr: (self: Self, expr: AstExpr) -> AstExpr,
+	expr_end: (self: Self, expr: AstExpr) -> AstExpr,
 
-	visit_unary_op: (self: Self, op: AstUnaryOp) -> (),
-	visit_binary_op: (self: Self, op: AstBinaryOp) -> (),
+	unary_op: (self: Self, op: AstUnaryOp) -> AstUnaryOp,
+	unary_op_end: (self: Self, op: AstUnaryOp) -> AstUnaryOp,
+	binary_op: (self: Self, op: AstBinaryOp) -> AstBinaryOp,
+	binary_op_end: (self: Self, op: AstBinaryOp) -> AstBinaryOp,
 
-	visit_var_name: (self: Self, var: AstVarName) -> (),
-	visit_var_expr: (self: Self, var: AstVarExpr) -> (),
-	visit_var_index_name: (self: Self, var: AstVarIndexName) -> (),
-	visit_var_index_expr: (self: Self, var: AstVarIndexExpr) -> (),
-	visit_var_call: (self: Self, var: AstVarCall) -> (),
-	visit_var: (self: Self, var: AstVar) -> (),
+	var_name: (self: Self, var: AstVarName) -> AstVarName,
+	var_name_end: (self: Self, var: AstVarName) -> AstVarName,
+	var_expr: (self: Self, var: AstVarExpr) -> AstVarExpr,
+	var_expr_end: (self: Self, var: AstVarExpr) -> AstVarExpr,
+	var_index_name: (self: Self, var: AstVarIndexName) -> AstVarIndexName,
+	var_index_name_end: (self: Self, var: AstVarIndexName) -> AstVarIndexName,
+	var_index_expr: (self: Self, var: AstVarIndexExpr) -> AstVarIndexExpr,
+	var_index_expr_end: (self: Self, var: AstVarIndexExpr) -> AstVarIndexExpr,
+	var_call: (self: Self, var: AstVarCall) -> AstVarCall,
+	var_call_end: (self: Self, var: AstVarCall) -> AstVarCall,
+	var: (self: Self, var: AstVar) -> AstVar,
+	var_end: (self: Self, var: AstVar) -> AstVar,
 
-	visit_function_call: (self: Self, call: AstFunctionCall) -> (),
+	function_call: (self: Self, call: AstFunctionCall) -> AstFunctionCall,
+	function_call_end: (self: Self, call: AstFunctionCall) -> AstFunctionCall,
 
-	visit_function_args_expr_list: (self: Self, args: AstFunctionArgsExprList) -> (),
-	visit_function_args_table: (self: Self, args: AstFunctionArgsTable) -> (),
-	visit_function_args_string: (self: Self, args: AstFunctionArgsString) -> (),
-	visit_function_args: (self: Self, args: AstFunctionArgs) -> (),
+	function_args_expr_list: (self: Self, args: AstFunctionArgsExprList) -> AstFunctionArgsExprList,
+	function_args_expr_list_end: (self: Self, args: AstFunctionArgsExprList) -> AstFunctionArgsExprList,
+	function_args_table: (self: Self, args: AstFunctionArgsTable) -> AstFunctionArgsTable,
+	function_args_table_end: (self: Self, args: AstFunctionArgsTable) -> AstFunctionArgsTable,
+	function_args_string: (self: Self, args: AstFunctionArgsString) -> AstFunctionArgsString,
+	function_args_string_end: (self: Self, args: AstFunctionArgsString) -> AstFunctionArgsString,
+	function_args: (self: Self, args: AstFunctionArgs) -> AstFunctionArgs,
+	function_args_end: (self: Self, args: AstFunctionArgs) -> AstFunctionArgs,
 
-	visit_table: (self: Self, table: AstTable) -> (),
+	table: (self: Self, table: AstTable) -> AstTable,
+	table_end: (self: Self, table: AstTable) -> AstTable,
 
-	visit_table_field_expr_key: (self: Self, field: AstTableFieldExprKey) -> (),
-	visit_table_field_name_key: (self: Self, field: AstTableFieldNameKey) -> (),
-	visit_table_field_no_key: (self: Self, field: AstTableFieldNoKey) -> (),
-	visit_table_field: (self: Self, field: AstTableField) -> (),
+	table_field_expr_key: (self: Self, field: AstTableFieldExprKey) -> AstTableFieldExprKey,
+	table_field_expr_key_end: (self: Self, field: AstTableFieldExprKey) -> AstTableFieldExprKey,
+	table_field_name_key: (self: Self, field: AstTableFieldNameKey) -> AstTableFieldNameKey,
+	table_field_name_key_end: (self: Self, field: AstTableFieldNameKey) -> AstTableFieldNameKey,
+	table_field_no_key: (self: Self, field: AstTableFieldNoKey) -> AstTableFieldNoKey,
+	table_field_no_key_end: (self: Self, field: AstTableFieldNoKey) -> AstTableFieldNoKey,
+	table_field: (self: Self, field: AstTableField) -> AstTableField,
+	table_field_end: (self: Self, field: AstTableField) -> AstTableField,
 
-	visit_function_body: (self: Self, body: AstFunctionBody) -> (),
+	function_body: (self: Self, body: AstFunctionBody) -> AstFunctionBody,
+	function_body_end: (self: Self, body: AstFunctionBody) -> AstFunctionBody,
 
-	visit_compound_op: (self: Self, op: AstCompoundOp) -> (),
+	compound_op: (self: Self, op: AstCompoundOp) -> AstCompoundOp,
+	compound_op_end: (self: Self, op: AstCompoundOp) -> AstCompoundOp,
 
-	visit_stat_assign: (self: Self, stat: AstStatAssign) -> (),
-	visit_stat_compound_assign: (self: Self, stat: AstStatCompoundAssign) -> (),
-	visit_stat_call: (self: Self, stat: AstStatCall) -> (),
-	visit_stat_do: (self: Self, stat: AstStatDo) -> (),
-	visit_stat_while: (self: Self, stat: AstStatWhile) -> (),
-	visit_stat_repeat: (self: Self, stat: AstStatRepeat) -> (),
-	visit_stat_if: (self: Self, stat: AstStatIf) -> (),
-	visit_stat_numeric_for: (self: Self, stat: AstStatNumericFor) -> (),
-	visit_stat_generic_for: (self: Self, stat: AstStatGenericFor) -> (),
-	visit_stat_function: (self: Self, stat: AstStatFunction) -> (),
-	visit_stat_local_function: (self: Self, stat: AstStatLocalFunction) -> (),
-	visit_stat_local_assign: (self: Self, stat: AstStatLocalAssign) -> (),
-	visit_stat_type: (self: Self, stat: AstStatType) -> (),
-	visit_stat: (self: Self, stat: AstStat) -> (),
+	stat_assign: (self: Self, stat: AstStatAssign) -> AstStatAssign,
+	stat_assign_end: (self: Self, stat: AstStatAssign) -> AstStatAssign,
+	stat_compound_assign: (self: Self, stat: AstStatCompoundAssign) -> AstStatCompoundAssign,
+	stat_compound_assign_end: (self: Self, stat: AstStatCompoundAssign) -> AstStatCompoundAssign,
+	stat_call: (self: Self, stat: AstStatCall) -> AstStatCall,
+	stat_call_end: (self: Self, stat: AstStatCall) -> AstStatCall,
+	stat_do: (self: Self, stat: AstStatDo) -> AstStatDo,
+	stat_do_end: (self: Self, stat: AstStatDo) -> AstStatDo,
+	stat_while: (self: Self, stat: AstStatWhile) -> AstStatWhile,
+	stat_while_end: (self: Self, stat: AstStatWhile) -> AstStatWhile,
+	stat_repeat: (self: Self, stat: AstStatRepeat) -> AstStatRepeat,
+	stat_repeat_end: (self: Self, stat: AstStatRepeat) -> AstStatRepeat,
+	stat_if: (self: Self, stat: AstStatIf) -> AstStatIf,
+	stat_if_end: (self: Self, stat: AstStatIf) -> AstStatIf,
+	stat_numeric_for: (self: Self, stat: AstStatNumericFor) -> AstStatNumericFor,
+	stat_numeric_for_end: (self: Self, stat: AstStatNumericFor) -> AstStatNumericFor,
+	stat_generic_for: (self: Self, stat: AstStatGenericFor) -> AstStatGenericFor,
+	stat_generic_for_end: (self: Self, stat: AstStatGenericFor) -> AstStatGenericFor,
+	stat_function: (self: Self, stat: AstStatFunction) -> AstStatFunction,
+	stat_function_end: (self: Self, stat: AstStatFunction) -> AstStatFunction,
+	stat_local_function: (self: Self, stat: AstStatLocalFunction) -> AstStatLocalFunction,
+	stat_local_function_end: (self: Self, stat: AstStatLocalFunction) -> AstStatLocalFunction,
+	stat_local_assign: (self: Self, stat: AstStatLocalAssign) -> AstStatLocalAssign,
+	stat_local_assign_end: (self: Self, stat: AstStatLocalAssign) -> AstStatLocalAssign,
+	stat_type: (self: Self, stat: AstStatType) -> AstStatType,
+	stat_type_end: (self: Self, stat: AstStatType) -> AstStatType,
+	stat: (self: Self, stat: AstStat) -> AstStat,
+	stat_end: (self: Self, stat: AstStat) -> AstStat,
 
-	visit_last_stat_return: (self: Self, stat: AstLastStatReturn) -> (),
-	visit_last_stat_break: (self: Self, stat: AstLastStatBreak) -> (),
-	visit_last_stat_continue: (self: Self, stat: AstLastStatContinue) -> (),
-	visit_last_stat: (self: Self, stat: AstLastStat) -> (),
+	laststat_return: (self: Self, stat: AstLastStatReturn) -> AstLastStatReturn,
+	laststat_return_end: (self: Self, stat: AstLastStatReturn) -> AstLastStatReturn,
+	laststat_break: (self: Self, stat: AstLastStatBreak) -> AstLastStatBreak,
+	laststat_break_end: (self: Self, stat: AstLastStatBreak) -> AstLastStatBreak,
+	laststat_continue: (self: Self, stat: AstLastStatContinue) -> AstLastStatContinue,
+	laststat_continue_end: (self: Self, stat: AstLastStatContinue) -> AstLastStatContinue,
+	laststat: (self: Self, stat: AstLastStat) -> AstLastStat,
+	laststat_end: (self: Self, stat: AstLastStat) -> AstLastStat,
 
-	visit_block: (self: Self, block: AstBlock) -> (),
-	visit_ast: (self: Self, ast: Ast) -> (),
+	block: (self: Self, block: AstBlock) -> AstBlock,
+	block_end: (self: Self, block: AstBlock) -> AstBlock,
+	ast: (self: Self, ast: Ast) -> Ast,
+	ast_end: (self: Self, ast: Ast) -> Ast,
 }
 
 local function visitor_new<Self>(): Visitor<Self>
-	local noop: (...any) -> () = function() end
+	local noop: <T>(Self, T) -> T = function(_, v)
+		return v
+	end
 
 	return {
-		visit_token = noop,
+		token = noop,
 
-		visit_istring_simple = noop,
-		visit_istring_complex = noop,
-		visit_istring = noop,
+		istring_simple = noop,
+		istring_simple_end = noop,
+		istring_complex = noop,
+		istring_complex_end = noop,
+		istring = noop,
+		istring_end = noop,
 
-		visit_type_nil = noop,
-		visit_type_true = noop,
-		visit_type_false = noop,
-		visit_type_string = noop,
-		visit_type_reference = noop,
-		visit_type_typeof = noop,
-		visit_type_array = noop,
-		visit_type_table = noop,
-		visit_type_function = noop,
-		visit_type_paren = noop,
-		visit_type_optional = noop,
-		visit_type_union = noop,
-		visit_type_intersection = noop,
-		visit_type = noop,
+		type_nil = noop,
+		type_nil_end = noop,
+		type_true = noop,
+		type_true_end = noop,
+		type_false = noop,
+		type_false_end = noop,
+		type_string = noop,
+		type_string_end = noop,
+		type_reference = noop,
+		type_reference_end = noop,
+		type_typeof = noop,
+		type_typeof_end = noop,
+		type_array = noop,
+		type_array_end = noop,
+		type_table = noop,
+		type_table_end = noop,
+		type_function = noop,
+		type_function_end = noop,
+		type_paren = noop,
+		type_paren_end = noop,
+		type_optional = noop,
+		type_optional_end = noop,
+		type_union = noop,
+		type_union_end = noop,
+		type_intersection = noop,
+		type_intersection_end = noop,
+		type = noop,
+		type_end = noop,
 
-		visit_type_table_field_name_prop = noop,
-		visit_type_table_field_string_prop = noop,
-		visit_type_table_field_indexer = noop,
-		visit_type_table_field = noop,
+		type_table_field_name_prop = noop,
+		type_table_field_name_prop_end = noop,
+		type_table_field_string_prop = noop,
+		type_table_field_string_prop_end = noop,
+		type_table_field_indexer = noop,
+		type_table_field_indexer_end = noop,
+		type_table_field = noop,
+		type_table_field_end = noop,
 
-		visit_return_type = noop,
+		return_type = noop,
+		return_type_end = noop,
 
-		visit_type_pack_list = noop,
-		visit_type_pack_variadic = noop,
-		visit_type_pack_generic = noop,
-		visit_type_pack = noop,
+		type_pack_list = noop,
+		type_pack_list_end = noop,
+		type_pack_variadic = noop,
+		type_pack_variadic_end = noop,
+		type_pack_generic = noop,
+		type_pack_generic_end = noop,
+		type_pack_tail = noop,
+		type_pack_tail_end = noop,
+		type_pack = noop,
+		type_pack_end = noop,
 
-		visit_generic_type_list = noop,
-		visit_generic_type_list_with_defaults = noop,
+		generic_type_list = noop,
+		generic_type_list_end = noop,
+		generic_type_list_with_defaults = noop,
+		generic_type_list_with_defaults_end = noop,
 
-		visit_binding = noop,
+		binding = noop,
+		binding_end = noop,
 
-		visit_expr_nil = noop,
-		visit_expr_boolean = noop,
-		visit_expr_number = noop,
-		visit_expr_string = noop,
-		visit_expr_varargs = noop,
-		visit_expr_istring = noop,
-		visit_expr_table = noop,
-		visit_expr_function = noop,
-		visit_expr_ifelse = noop,
-		visit_expr_var = noop,
-		visit_expr_assertion = noop,
-		visit_expr_unary = noop,
-		visit_expr_binary = noop,
-		visit_expr = noop,
+		expr_nil = noop,
+		expr_nil_end = noop,
+		expr_boolean = noop,
+		expr_boolean_end = noop,
+		expr_number = noop,
+		expr_number_end = noop,
+		expr_string = noop,
+		expr_string_end = noop,
+		expr_varargs = noop,
+		expr_varargs_end = noop,
+		expr_istring = noop,
+		expr_istring_end = noop,
+		expr_table = noop,
+		expr_table_end = noop,
+		expr_function = noop,
+		expr_function_end = noop,
+		expr_ifelse = noop,
+		expr_ifelse_end = noop,
+		expr_var = noop,
+		expr_var_end = noop,
+		expr_assertion = noop,
+		expr_assertion_end = noop,
+		expr_unary = noop,
+		expr_unary_end = noop,
+		expr_binary = noop,
+		expr_binary_end = noop,
+		expr = noop,
+		expr_end = noop,
 
-		visit_unary_op = noop,
-		visit_binary_op = noop,
+		unary_op = noop,
+		unary_op_end = noop,
+		binary_op = noop,
+		binary_op_end = noop,
 
-		visit_var_name = noop,
-		visit_var_expr = noop,
-		visit_var_index_name = noop,
-		visit_var_index_expr = noop,
-		visit_var_call = noop,
-		visit_var = noop,
+		var_name = noop,
+		var_name_end = noop,
+		var_expr = noop,
+		var_expr_end = noop,
+		var_index_name = noop,
+		var_index_name_end = noop,
+		var_index_expr = noop,
+		var_index_expr_end = noop,
+		var_call = noop,
+		var_call_end = noop,
+		var = noop,
+		var_end = noop,
 
-		visit_function_call = noop,
+		function_call = noop,
+		function_call_end = noop,
 
-		visit_function_args_expr_list = noop,
-		visit_function_args_table = noop,
-		visit_function_args_string = noop,
-		visit_function_args = noop,
+		function_args_expr_list = noop,
+		function_args_expr_list_end = noop,
+		function_args_table = noop,
+		function_args_table_end = noop,
+		function_args_string = noop,
+		function_args_string_end = noop,
+		function_args = noop,
+		function_args_end = noop,
 
-		visit_table = noop,
+		table = noop,
+		table_end = noop,
 
-		visit_table_field_expr_key = noop,
-		visit_table_field_name_key = noop,
-		visit_table_field_no_key = noop,
-		visit_table_field = noop,
+		table_field_expr_key = noop,
+		table_field_expr_key_end = noop,
+		table_field_name_key = noop,
+		table_field_name_key_end = noop,
+		table_field_no_key = noop,
+		table_field_no_key_end = noop,
+		table_field = noop,
+		table_field_end = noop,
 
-		visit_function_body = noop,
+		function_body = noop,
+		function_body_end = noop,
 
-		visit_compound_op = noop,
+		compound_op = noop,
+		compound_op_end = noop,
 
-		visit_stat_assign = noop,
-		visit_stat_compound_assign = noop,
-		visit_stat_call = noop,
-		visit_stat_do = noop,
-		visit_stat_while = noop,
-		visit_stat_repeat = noop,
-		visit_stat_if = noop,
-		visit_stat_numeric_for = noop,
-		visit_stat_generic_for = noop,
-		visit_stat_function = noop,
-		visit_stat_local_function = noop,
-		visit_stat_local_assign = noop,
-		visit_stat_type = noop,
-		visit_stat = noop,
+		stat_assign = noop,
+		stat_assign_end = noop,
+		stat_compound_assign = noop,
+		stat_compound_assign_end = noop,
+		stat_call = noop,
+		stat_call_end = noop,
+		stat_do = noop,
+		stat_do_end = noop,
+		stat_while = noop,
+		stat_while_end = noop,
+		stat_repeat = noop,
+		stat_repeat_end = noop,
+		stat_if = noop,
+		stat_if_end = noop,
+		stat_numeric_for = noop,
+		stat_numeric_for_end = noop,
+		stat_generic_for = noop,
+		stat_generic_for_end = noop,
+		stat_function = noop,
+		stat_function_end = noop,
+		stat_local_function = noop,
+		stat_local_function_end = noop,
+		stat_local_assign = noop,
+		stat_local_assign_end = noop,
+		stat_type = noop,
+		stat_type_end = noop,
+		stat = noop,
+		stat_end = noop,
 
-		visit_last_stat_return = noop,
-		visit_last_stat_break = noop,
-		visit_last_stat_continue = noop,
-		visit_last_stat = noop,
+		laststat_return = noop,
+		laststat_return_end = noop,
+		laststat_break = noop,
+		laststat_break_end = noop,
+		laststat_continue = noop,
+		laststat_continue_end = noop,
+		laststat = noop,
+		laststat_end = noop,
 
-		visit_block = noop,
-		visit_ast = noop,
+		block = noop,
+		block_end = noop,
+		ast = noop,
+		ast_end = noop,
 	}
 end
 
-local ast_visit: <Self>(self: Self, visitor: Visitor<Self>, ast: Ast) -> ()
+local ast_visit: <Self>(self: Self, visitor: Visitor<Self>, ast: Ast) -> Ast
 
 do
-	local visit_istring: <Self>(self: Self, visitor: Visitor<Self>, istring: AstIString) -> ()
-	local visit_type: <Self>(self: Self, visitor: Visitor<Self>, type: AstType) -> ()
-	local visit_return_type: <Self>(self: Self, visitor: Visitor<Self>, type: AstReturnType) -> ()
-	local visit_type_pack: <Self>(self: Self, visitor: Visitor<Self>, pack: AstTypePack) -> ()
-	local visit_generic_type_list: <Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeList) -> ()
-	local visit_generic_type_list_with_defaults: <Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeListWithDefaults) -> ()
-	local visit_binding: <Self>(self: Self, visitor: Visitor<Self>, binding: AstBinding) -> ()
-	local visit_expr: <Self>(self: Self, visitor: Visitor<Self>, expr: AstExpr) -> ()
-	local visit_var: <Self>(self: Self, visitor: Visitor<Self>, var: AstVar) -> ()
-	local visit_function_call: <Self>(self: Self, visitor: Visitor<Self>, call: AstFunctionCall) -> ()
-	local visit_function_args: <Self>(self: Self, visitor: Visitor<Self>, args: AstFunctionArgs) -> ()
-	local visit_table: <Self>(self: Self, visitor: Visitor<Self>, table: AstTable) -> ()
-	local visit_function_body: <Self>(self: Self, visitor: Visitor<Self>, body: AstFunctionBody) -> ()
-	local visit_stat: <Self>(self: Self, visitor: Visitor<Self>, stat: AstStat) -> ()
-	local visit_last_stat: <Self>(self: Self, visitor: Visitor<Self>, stat: AstLastStat) -> ()
-	local visit_block: <Self>(self: Self, visitor: Visitor<Self>, block: AstBlock) -> ()
+	local visit_istring: <Self>(self: Self, visitor: Visitor<Self>, istring: AstIString) -> AstIString
+	local visit_type: <Self>(self: Self, visitor: Visitor<Self>, type: AstType) -> AstType
+	local visit_return_type: <Self>(self: Self, visitor: Visitor<Self>, type: AstReturnType) -> AstReturnType
+	local visit_type_pack: <Self>(self: Self, visitor: Visitor<Self>, pack: AstTypePack) -> AstTypePack
+	local visit_generic_type_list: <Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeList) -> AstGenericTypeList
+	local visit_generic_type_list_with_defaults: <Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeListWithDefaults) -> AstGenericTypeListWithDefaults
+	local visit_binding: <Self>(self: Self, visitor: Visitor<Self>, binding: AstBinding) -> AstBinding
+	local visit_expr: <Self>(self: Self, visitor: Visitor<Self>, expr: AstExpr) -> AstExpr
+	local visit_var: <Self>(self: Self, visitor: Visitor<Self>, var: AstVar) -> AstVar
+	local visit_function_call: <Self>(self: Self, visitor: Visitor<Self>, call: AstFunctionCall) -> AstFunctionCall
+	local visit_function_args: <Self>(self: Self, visitor: Visitor<Self>, args: AstFunctionArgs) -> AstFunctionArgs
+	local visit_table: <Self>(self: Self, visitor: Visitor<Self>, table: AstTable) -> AstTable
+	local visit_function_body: <Self>(self: Self, visitor: Visitor<Self>, body: AstFunctionBody) -> AstFunctionBody
+	local visit_stat: <Self>(self: Self, visitor: Visitor<Self>, stat: AstStat) -> AstStat
+	local visit_laststat: <Self>(self: Self, visitor: Visitor<Self>, stat: AstLastStat) -> AstLastStat
+	local visit_block: <Self>(self: Self, visitor: Visitor<Self>, block: AstBlock) -> AstBlock
 
-	function visit_istring<Self>(self: Self, visitor: Visitor<Self>, istring: AstIString)
-		visitor.visit_istring(self, istring)
+	function visit_istring<Self>(self: Self, visitor: Visitor<Self>, istring: AstIString): AstIString
+		istring = visitor.istring(self, istring)
 
 		if istring.kind == "simple" then
-			visitor.visit_istring_simple(self, istring)
-			visitor.visit_token(self, istring.tok)
+			istring = visitor.istring_simple(self, istring)
+			visitor.token(self, istring.tok)
+			istring = visitor.istring_simple_end(self, istring)
 		elseif istring.kind == "complex" then
-			visitor.visit_istring_complex(self, istring)
-			visitor.visit_token(self, istring.begin)
+			istring = visitor.istring_complex(self, istring)
+			visitor.token(self, istring.begin)
 
 			for _, pair in istring.middle do
-				local item, sep = pair.item, pair.sep
+				local expr, middle = pair.item, pair.sep
 
-				visit_expr(self, visitor, item)
-
-				if sep then
-					visitor.visit_token(self, sep)
-				end
+				visit_expr(self, visitor, expr)
+				visitor.token(self, middle :: TokenIStringMiddle)
 			end
 
-			visitor.visit_token(self, istring.last)
+			visitor.token(self, istring.last)
+			istring = visitor.istring_complex_end(self, istring)
 		end
+
+		return visitor.istring_end(self, istring)
 	end
 
-	function visit_type<Self>(self: Self, visitor: Visitor<Self>, type: AstType)
-		visitor.visit_type(self, type)
+	local function visit_type_pack_tail<Self>(self: Self, visitor: Visitor<Self>, pack: AstTypePackTail): AstTypePackTail
+		pack = visitor.type_pack_tail(self, pack)
+
+		if pack.kind == "variadic" then
+			pack = visitor.type_pack_variadic(self, pack)
+			visitor.token(self, pack.dots)
+			pack.type = visit_type(self, visitor, pack.type)
+			pack = visitor.type_pack_variadic_end(self, pack)
+		elseif pack.kind == "generic" then
+			pack = visitor.type_pack_generic(self, pack)
+			visitor.token(self, pack.name)
+			visitor.token(self, pack.dots)
+			pack = visitor.type_pack_generic_end(self, pack)
+		end
+
+		return visitor.type_pack_tail_end(self, pack)
+	end
+
+	function visit_type<Self>(self: Self, visitor: Visitor<Self>, type: AstType): AstType
+		type = visitor.type(self, type)
 
 		if type.kind == "nil" then
-			visitor.visit_type_nil(self, type)
-			visitor.visit_token(self, type.tok)
+			type = visitor.type_nil(self, type)
+			visitor.token(self, type.tok)
+			type = visitor.type_nil_end(self, type)
 		elseif type.kind == "true" then
-			visitor.visit_type_true(self, type)
-			visitor.visit_token(self, type.tok)
+			type = visitor.type_true(self, type)
+			visitor.token(self, type.tok)
+			type = visitor.type_true_end(self, type)
 		elseif type.kind == "false" then
-			visitor.visit_type_false(self, type)
-			visitor.visit_token(self, type.tok)
+			type = visitor.type_false(self, type)
+			visitor.token(self, type.tok)
+			type = visitor.type_false_end(self, type)
 		elseif type.kind == "string" then
-			visitor.visit_type_string(self, type)
-			visitor.visit_token(self, type.tok)
+			type = visitor.type_string(self, type)
+			visitor.token(self, type.tok)
+			type = visitor.type_string_end(self, type)
 		elseif type.kind == "reference" then
-			visitor.visit_type_reference(self, type)
+			type = visitor.type_reference(self, type)
 
 			if type.prefix then
-				visitor.visit_token(self, type.prefix.name)
-				visitor.visit_token(self, type.prefix.dot)
+				visitor.token(self, type.prefix.name)
+				visitor.token(self, type.prefix.dot)
 			end
 
-			visitor.visit_token(self, type.name)
+			visitor.token(self, type.name)
 
 			if type.generics then
-				visitor.visit_token(self, type.generics.angles.open)
+				visitor.token(self, type.generics.angles.open)
 
 				for _, pair in type.generics.types do
-					local item, sep = pair.item, pair.sep
+					local type_or_pack = pair.item
 
-					if item.kind == "list" or item.kind == "variadic" or item.kind == "generic" then
-						visit_type_pack(self, visitor, item)
+					if type_or_pack.kind == "list" or type_or_pack.kind == "variadic" or type_or_pack.kind == "generic" then
+						type_or_pack = visit_type_pack(self, visitor, type_or_pack)
 					else
-						visit_type(self, visitor, item)
+						type_or_pack = visit_type(self, visitor, type_or_pack)
 					end
 
-					if sep then
-						visitor.visit_token(self, sep)
-					end
+					pair.item = type_or_pack
 				end
 
-				visitor.visit_token(self, type.generics.angles.close)
+				visitor.token(self, type.generics.angles.close)
 			end
+
+			type = visitor.type_reference_end(self, type)
 		elseif type.kind == "typeof" then
-			visitor.visit_type_typeof(self, type)
-			visitor.visit_token(self, type.tok :: any)
-			visitor.visit_token(self, type.parens.open)
-			visit_expr(self, visitor, type.expr)
-			visitor.visit_token(self, type.parens.close)
+			type = visitor.type_typeof(self, type)
+			visitor.token(self, type.tok :: any)
+			visitor.token(self, type.parens.open)
+			type.expr = visit_expr(self, visitor, type.expr)
+			visitor.token(self, type.parens.close)
+			type = visitor.type_typeof_end(self, type)
 		elseif type.kind == "array" then
-			visitor.visit_type_array(self, type)
-			visitor.visit_token(self, type.braces.open)
-			visit_type(self, visitor, type.type)
-			visitor.visit_token(self, type.braces.close)
+			type = visitor.type_array(self, type)
+			type.type = visit_type(self, visitor, type.type)
+			type = visitor.type_array_end(self, type)
 		elseif type.kind == "table" then
-			visitor.visit_type_table(self, type)
-			visitor.visit_token(self, type.braces.open)
+			type = visitor.type_table(self, type)
+			visitor.token(self, type.braces.open)
 
 			for _, pair in type.fields do
 				local field, sep = pair.item, pair.sep
-
-				visitor.visit_type_table_field(self, field)
+				field = visitor.type_table_field(self, field)
 
 				if field.kind == "nameprop" then
-					visitor.visit_type_table_field_name_prop(self, field)
-					visitor.visit_token(self, field.key)
-					visitor.visit_token(self, field.colon)
-					visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_name_prop(self, field)
+					visitor.token(self, field.key)
+					visitor.token(self, field.colon)
+					field.value = visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_name_prop_end(self, field)
 				elseif field.kind == "stringprop" then
-					visitor.visit_type_table_field_string_prop(self, field)
-					visitor.visit_token(self, field.bracks.open)
-					visitor.visit_token(self, field.key)
-					visitor.visit_token(self, field.bracks.close)
-					visitor.visit_token(self, field.colon)
-					visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_string_prop(self, field)
+					visitor.token(self, field.bracks.open)
+					visitor.token(self, field.key)
+					visitor.token(self, field.bracks.close)
+					visitor.token(self, field.colon)
+					field.value = visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_string_prop_end(self, field)
 				elseif field.kind == "indexer" then
-					visitor.visit_type_table_field_indexer(self, field)
-					visitor.visit_token(self, field.bracks.open)
-					visit_type(self, visitor, field.key)
-					visitor.visit_token(self, field.bracks.close)
-					visitor.visit_token(self, field.colon)
-					visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_indexer(self, field)
+					visitor.token(self, field.bracks.open)
+					field.key = visit_type(self, visitor, field.key)
+					visitor.token(self, field.bracks.close)
+					field.value = visit_type(self, visitor, field.value)
+					field = visitor.type_table_field_indexer_end(self, field)
 				end
+
+				pair.item = visitor.type_table_field_end(self, field)
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
-			visitor.visit_token(self, type.braces.close)
+			visitor.token(self, type.braces.close)
+			type = visitor.type_table_end(self, type)
 		elseif type.kind == "function" then
-			visitor.visit_type_function(self, type)
+			type = visitor.type_function(self, type)
 
 			if type.generics then
-				visit_generic_type_list(self, visitor, type.generics)
+				type.generics = visit_generic_type_list(self, visitor, type.generics)
 			end
 
-			visitor.visit_token(self, type.parens.open)
+			visitor.token(self, type.parens.open)
 
 			for _, pair in type.params do
 				local param, sep = pair.item, pair.sep
 
 				if param.name then
-					visitor.visit_token(self, param.name.name)
-					visitor.visit_token(self, param.name.colon)
+					visitor.token(self, param.name.name)
+					visitor.token(self, param.name.colon)
 				end
 
-				visit_type(self, visitor, param.type)
+				param.type = visit_type(self, visitor, type)
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
 			if type.tail then
-				visit_type_pack(self, visitor, type.tail)
+				type.tail = visit_type_pack_tail(self, visitor, type.tail)
 			end
 
-			visitor.visit_token(self, type.parens.close)
-			visitor.visit_token(self, type.arrow)
-			visit_return_type(self, visitor, type.returns)
+			visitor.token(self, type.parens.close)
+			visitor.token(self, type.arrow)
+			type.returns = visit_return_type(self, visitor, type.returns)
+
+			type = visitor.type_function_end(self, type)
 		elseif type.kind == "paren" then
-			visitor.visit_type_paren(self, type)
-			visitor.visit_token(self, type.parens.open)
-			visit_type(self, visitor, type.type)
-			visitor.visit_token(self, type.parens.close)
+			type = visitor.type_paren(self, type)
+			visitor.token(self, type.parens.open)
+			type.type = visit_type(self, visitor, type.type)
+			visitor.token(self, type.parens.close)
+			type = visitor.type_paren_end(self, type)
 		elseif type.kind == "optional" then
-			visitor.visit_type_optional(self, type)
+			type = visitor.type_optional(self, type)
 			visit_type(self, visitor, type.type)
-			visitor.visit_token(self, type.question)
+			visitor.token(self, type.question)
+			type = visitor.type_optional_end(self, type)
 		elseif type.kind == "union" then
-			visitor.visit_type_union(self, type)
+			type = visitor.type_union(self, type)
 
 			if type.leading then
-				visitor.visit_token(self, type.leading)
+				visitor.token(self, type.leading)
 			end
 
 			for _, pair in type.types do
-				local item, sep = pair.item, pair.sep
+				pair.item = visit_type(self, visitor, pair.item)
 
-				visit_type(self, visitor, item)
+				local sep = pair.sep
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
+
+			type = visitor.type_union_end(self, type)
 		elseif type.kind == "intersection" then
-			visitor.visit_type_intersection(self, type)
+			type = visitor.type_intersection(self, type)
 
 			if type.leading then
-				visitor.visit_token(self, type.leading)
+				visitor.token(self, type.leading)
 			end
 
 			for _, pair in type.types do
-				local item, sep = pair.item, pair.sep
+				pair.item = visit_type(self, visitor, pair.item)
 
-				visit_type(self, visitor, item)
+				local sep = pair.sep
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
-		end
-	end
 
-	function visit_return_type<Self>(self: Self, visitor: Visitor<Self>, type: AstReturnType)
-		visitor.visit_return_type(self, type)
-
-		if type.kind == "list" or type.kind == "variadic" or type.kind == "generic" then
-			visit_type_pack(self, visitor, type)
+			type = visitor.type_intersection_end(self, type)
 		else
-			visit_type(self, visitor, type)
+			error("unreachable")
 		end
+
+		return visitor.type_end(self, type)
 	end
 
-	function visit_type_pack<Self>(self: Self, visitor: Visitor<Self>, pack: AstTypePack)
-		visitor.visit_type_pack(self, pack)
+	function visit_return_type<Self>(self: Self, visitor: Visitor<Self>, type: AstReturnType): AstReturnType
+		type = visitor.return_type(self, type)
 
-		if pack.kind == "list" then
-			visitor.visit_type_pack_list(self, pack)
-			visitor.visit_token(self, pack.parens.open)
+		if type.kind == "variadic" or type.kind == "generic" or type.kind == "list" then
+			type = visit_type_pack(self, visitor, type)
+		else
+			type = visit_type(self, visitor, type)
+		end
+
+		return visitor.return_type_end(self, type)
+	end
+
+	function visit_type_pack<Self>(self: Self, visitor: Visitor<Self>, pack: AstTypePack): AstTypePack
+		pack = visitor.type_pack(self, pack)
+
+		if pack.kind == "variadic" or pack.kind == "generic" then
+			pack = visit_type_pack_tail(self, visitor, pack)
+		else
+			pack = visitor.type_pack_list(self, pack)
+			visitor.token(self, pack.parens.open)
 
 			for _, pair in pack.types do
-				local item, sep = pair.item, pair.sep
+				pair.item = visit_type(self, visitor, pair.item)
 
-				visit_type(self, visitor, item)
+				local sep = pair.sep
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
 			if pack.tail then
-				visit_type_pack(self, visitor, pack.tail)
+				pack.tail = visit_type_pack_tail(self, visitor, pack.tail)
 			end
 
-			visitor.visit_token(self, pack.parens.close)
-		elseif pack.kind == "variadic" then
-			visitor.visit_type_pack_variadic(self, pack)
-			visitor.visit_token(self, pack.dots)
-			visit_type(self, visitor, pack.type)
-		elseif pack.kind == "generic" then
-			visitor.visit_type_pack_generic(self, pack)
-			visitor.visit_token(self, pack.name)
-			visitor.visit_token(self, pack.dots)
+			visitor.token(self, pack.parens.close)
+			pack = visitor.type_pack_list_end(self, pack)
 		end
+
+		return visitor.type_pack_end(self, pack)
 	end
 
-	function visit_generic_type_list<Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeList)
-		visitor.visit_generic_type_list(self, generics)
-		visitor.visit_token(self, generics.angles.open)
+	function visit_generic_type_list<Self>(self: Self, visitor: Visitor<Self>, generics: AstGenericTypeList): AstGenericTypeList
+		generics = visitor.generic_type_list(self, generics)
+		visitor.token(self, generics.angles.open)
 
 		for _, pair in generics.names do
 			local name, sep = pair.item, pair.sep
 
-			visitor.visit_token(self, name)
+			visitor.token(self, name)
 
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
 		for _, pair in generics.packs do
 			local pack, sep = pair.item, pair.sep
 
-			visitor.visit_token(self, pack.name)
-			visitor.visit_token(self, pack.dots)
+			visitor.token(self, pack.name)
+			visitor.token(self, pack.dots)
 
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
-		visitor.visit_token(self, generics.angles.close)
+		visitor.token(self, generics.angles.close)
+		return visitor.generic_type_list(self, generics)
 	end
 
 	function visit_generic_type_list_with_defaults<Self>(
 		self: Self,
 		visitor: Visitor<Self>,
 		generics: AstGenericTypeListWithDefaults
-	)
-		visitor.visit_generic_type_list_with_defaults(self, generics)
-		visitor.visit_token(self, generics.angles.open)
+	): AstGenericTypeListWithDefaults
+		generics = visitor.generic_type_list_with_defaults(self, generics)
+		visitor.token(self, generics.angles.open)
 
 		for _, pair in generics.names do
 			local name, sep = pair.item, pair.sep
 
-			visitor.visit_token(self, name.name)
+			visitor.token(self, name.name)
 
 			if name.default then
-				visitor.visit_token(self, name.default.eq)
+				visitor.token(self, name.default.eq)
 				visit_type(self, visitor, name.default.type)
 			end
 
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
 		for _, pair in generics.packs do
 			local pack, sep = pair.item, pair.sep
 
-			visitor.visit_token(self, pack.name)
-			visitor.visit_token(self, pack.dots)
+			visitor.token(self, pack.name)
+			visitor.token(self, pack.dots)
 
 			if pack.default then
-				visitor.visit_token(self, pack.default.eq)
+				visitor.token(self, pack.default.eq)
 				visit_type_pack(self, visitor, pack.default.pack)
 			end
 
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
-		visitor.visit_token(self, generics.angles.close)
+		visitor.token(self, generics.angles.close)
+		return visitor.generic_type_list_with_defaults_end(self, generics)
 	end
 
-	function visit_binding<Self>(self: Self, visitor: Visitor<Self>, binding: AstBinding)
-		visitor.visit_binding(self, binding)
-		visitor.visit_token(self, binding.name)
+	function visit_binding<Self>(self: Self, visitor: Visitor<Self>, binding: AstBinding): AstBinding
+		binding = visitor.binding(self, binding)
+		visitor.token(self, binding.name)
 
 		if binding.type then
-			visitor.visit_token(self, binding.type.colon)
-			visit_type(self, visitor, binding.type.type)
+			visitor.token(self, binding.type.colon)
+			binding.type.type = visit_type(self, visitor, binding.type.type)
 		end
+
+		return visitor.binding_end(self, binding)
 	end
 
-	function visit_expr<Self>(self: Self, visitor: Visitor<Self>, expr: AstExpr)
-		visitor.visit_expr(self, expr)
+	function visit_expr<Self>(self: Self, visitor: Visitor<Self>, expr: AstExpr): AstExpr
+		expr = visitor.expr(self, expr)
 
 		if expr.kind == "nil" then
-			visitor.visit_expr_nil(self, expr)
-			visitor.visit_token(self, expr.tok)
+			expr = visitor.expr_nil(self, expr)
+			visitor.token(self, expr.tok)
+			expr = visitor.expr_nil_end(self, expr)
 		elseif expr.kind == "boolean" then
-			visitor.visit_expr_boolean(self, expr)
-			visitor.visit_token(self, expr.tok)
+			expr = visitor.expr_boolean(self, expr)
+			visitor.token(self, expr.tok)
+			expr = visitor.expr_boolean_end(self, expr)
 		elseif expr.kind == "number" then
-			visitor.visit_expr_number(self, expr)
-			visitor.visit_token(self, expr.tok)
+			expr = visitor.expr_number(self, expr)
+			visitor.token(self, expr.tok)
+			expr = visitor.expr_number_end(self, expr)
 		elseif expr.kind == "string" then
-			visitor.visit_expr_string(self, expr)
-			visitor.visit_token(self, expr.tok)
+			expr = visitor.expr_string(self, expr)
+			visitor.token(self, expr.tok)
+			expr = visitor.expr_string_end(self, expr)
 		elseif expr.kind == "varargs" then
-			visitor.visit_expr_varargs(self, expr)
-			visitor.visit_token(self, expr.tok)
+			expr = visitor.expr_varargs(self, expr)
+			visitor.token(self, expr.tok)
+			expr = visitor.expr_varargs_end(self, expr)
 		elseif expr.kind == "istring" then
-			visitor.visit_expr_istring(self, expr)
-			visit_istring(self, visitor, expr.istring)
+			expr = visitor.expr_istring(self, expr)
+			expr.istring = visit_istring(self, visitor, expr.istring)
+			expr = visitor.expr_istring_end(self, expr)
 		elseif expr.kind == "table" then
-			visitor.visit_expr_table(self, expr)
-			visit_table(self, visitor, expr.table)
+			expr = visitor.expr_table(self, expr)
+			expr.table = visit_table(self, visitor, expr.table)
+			expr = visitor.expr_table_end(self, expr)
 		elseif expr.kind == "function" then
-			visitor.visit_expr_function(self, expr)
+			expr = visitor.expr_function(self, expr)
 
 			for _, attribute in expr.attributes do
-				visitor.visit_token(self, attribute)
+				visitor.token(self, attribute)
 			end
 
-			visitor.visit_token(self, expr.function_tok)
-			visit_function_body(self, visitor, expr.body)
+			visitor.token(self, expr.function_tok)
+			expr.body = visit_function_body(self, visitor, expr.body)
+
+			return visitor.expr_function_end(self, expr)
 		elseif expr.kind == "ifelse" then
-			visitor.visit_expr_ifelse(self, expr)
-			visitor.visit_token(self, expr.if_tok)
-			visit_expr(self, visitor, expr.condition)
-			visitor.visit_token(self, expr.then_tok)
-			visit_expr(self, visitor, expr.if_expr)
+			expr = visitor.expr_ifelse(self, expr)
+			visitor.token(self, expr.if_tok)
+			expr.condition = visit_expr(self, visitor, expr.condition)
+			visitor.token(self, expr.then_tok)
+			expr.if_expr = visit_expr(self, visitor, expr.if_expr)
 
 			for _, elseif_ in expr.elseifs do
-				visitor.visit_token(self, elseif_.elseif_tok)
-				visit_expr(self, visitor, elseif_.condition)
-				visitor.visit_token(self, elseif_.then_tok)
-				visit_expr(self, visitor, elseif_.elseif_expr)
+				visitor.token(self, elseif_.elseif_tok)
+				elseif_.condition = visit_expr(self, visitor, elseif_.condition)
+				visitor.token(self, elseif_.then_tok)
+				elseif_.elseif_expr = visit_expr(self, visitor, elseif_.elseif_expr)
 			end
 
-			visitor.visit_token(self, expr.else_tok)
-			visit_expr(self, visitor, expr.else_expr)
+			visitor.token(self, expr.else_tok)
+			expr.else_expr = visit_expr(self, visitor, expr.else_expr)
+			expr = visitor.expr_ifelse_end(self, expr)
 		elseif expr.kind == "var" then
-			visitor.visit_expr_var(self, expr)
-			visit_var(self, visitor, expr.var)
+			expr = visitor.expr_var(self, expr)
+			expr.var = visit_var(self, visitor, expr.var)
+			expr = visitor.expr_var_end(self, expr)
 		elseif expr.kind == "assertion" then
-			visitor.visit_expr_assertion(self, expr)
-			visit_expr(self, visitor, expr.expr)
-			visitor.visit_token(self, expr.colons)
-			visit_type(self, visitor, expr.type)
+			expr = visitor.expr_assertion(self, expr)
+			expr.expr = visit_expr(self, visitor, expr.expr)
+			visitor.token(self, expr.colons)
+			expr.type = visit_type(self, visitor, expr.type)
+			expr = visitor.expr_assertion_end(self, expr)
 		elseif expr.kind == "unary" then
-			visitor.visit_expr_unary(self, expr)
-			visitor.visit_unary_op(self, expr.op)
-			visitor.visit_token(self, expr.op)
-			visit_expr(self, visitor, expr.rhs)
+			expr = visitor.expr_unary(self, expr)
+			visitor.unary_op(self, expr.op)
+			visitor.token(self, expr.op)
+			expr.rhs = visit_expr(self, visitor, expr.rhs)
+			expr = visitor.expr_unary_end(self, expr)
 		elseif expr.kind == "binary" then
-			visitor.visit_expr_binary(self, expr)
-			visit_expr(self, visitor, expr.lhs)
-			visitor.visit_binary_op(self, expr.op)
-			visitor.visit_token(self, expr.op)
-			visit_expr(self, visitor, expr.rhs)
+			expr = visitor.expr_binary(self, expr)
+			expr.lhs = visit_expr(self, visitor, expr.lhs)
+			visitor.binary_op(self, expr.op)
+			visitor.token(self, expr.op)
+			expr.rhs = visit_expr(self, visitor, expr.rhs)
+			expr = visitor.expr_binary_end(self, expr)
+		else
+			error("unreachable")
 		end
+
+		return visitor.expr_end(self, expr)
 	end
 
-	function visit_var<Self>(self: Self, visitor: Visitor<Self>, var: AstVar)
-		visitor.visit_var(self, var)
+	function visit_var<Self>(self: Self, visitor: Visitor<Self>, var: AstVar): AstVar
+		var = visitor.var(self, var)
 
 		if var.kind == "name" then
-			visitor.visit_var_name(self, var)
-			visitor.visit_token(self, var.tok)
+			var = visitor.var_name(self, var)
+			visitor.token(self, var.tok)
+			var = visitor.var_name_end(self, var)
 		elseif var.kind == "expr" then
-			visitor.visit_var_expr(self, var)
-			visitor.visit_token(self, var.parens.open)
-			visit_expr(self, visitor, var.expr)
-			visitor.visit_token(self, var.parens.close)
+			var = visitor.var_expr(self, var)
+			visitor.token(self, var.parens.open)
+			var.expr = visit_expr(self, visitor, var.expr)
+			visitor.token(self, var.parens.close)
+			var = visitor.var_expr_end(self, var)
 		elseif var.kind == "indexname" then
-			visitor.visit_var_index_name(self, var)
-			visit_var(self, visitor, var.lhs)
-			visitor.visit_token(self, var.dot)
-			visitor.visit_token(self, var.name)
+			var = visitor.var_index_name(self, var)
+			var.lhs = visit_var(self, visitor, var.lhs)
+			visitor.token(self, var.dot)
+			visitor.token(self, var.name)
+			var = visitor.var_index_name_end(self, var)
 		elseif var.kind == "indexexpr" then
-			visitor.visit_var_index_expr(self, var)
-			visit_var(self, visitor, var.lhs)
-			visitor.visit_token(self, var.bracks.open)
-			visit_expr(self, visitor, var.expr)
-			visitor.visit_token(self, var.bracks.close)
+			var = visitor.var_index_expr(self, var)
+			var.lhs = visit_var(self, visitor, var.lhs)
+			visitor.token(self, var.bracks.open)
+			var.expr = visit_expr(self, visitor, var.expr)
+			visitor.token(self, var.bracks.close)
+			var = visitor.var_index_expr_end(self, var)
 		elseif var.kind == "call" then
-			visitor.visit_var_call(self, var)
-			visit_function_call(self, visitor, var.call)
+			var = visitor.var_call(self, var)
+			var.call = visit_function_call(self, visitor, var.call)
+			var = visitor.var_call_end(self, var)
+		else
+			error("unreachable")
 		end
+
+		return visitor.var_end(self, var)
 	end
 
-	function visit_function_call<Self>(self: Self, visitor: Visitor<Self>, call: AstFunctionCall)
-		visitor.visit_function_call(self, call)
-		visit_var(self, visitor, call.lhs)
+	function visit_function_call<Self>(self: Self, visitor: Visitor<Self>, call: AstFunctionCall): AstFunctionCall
+		call = visitor.function_call(self, call)
+		call.lhs = visit_var(self, visitor, call.lhs)
 
 		if call.method then
-			visitor.visit_token(self, call.method.colon)
-			visitor.visit_token(self, call.method.name)
+			visitor.token(self, call.method.colon)
+			visitor.token(self, call.method.name)
 		end
 
-		visit_function_args(self, visitor, call.args)
+		call.args = visit_function_args(self, visitor, call.args)
+		return visitor.function_call_end(self, call)
 	end
 
-	function visit_function_args<Self>(self: Self, visitor: Visitor<Self>, args: AstFunctionArgs)
-		visitor.visit_function_args(self, args)
+	function visit_function_args<Self>(self: Self, visitor: Visitor<Self>, args: AstFunctionArgs): AstFunctionArgs
+		args = visitor.function_args(self, args)
 
 		if args.kind == "exprlist" then
-			visitor.visit_function_args_expr_list(self, args)
-			visitor.visit_token(self, args.parens.open)
+			args = visitor.function_args_expr_list(self, args)
+			visitor.token(self, args.parens.open)
 
 			for _, pair in args.exprs do
 				local expr, sep = pair.item, pair.sep
 
-				visit_expr(self, visitor, expr)
+				expr = visit_expr(self, visitor, expr)
+				pair.item = expr
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
-			visitor.visit_token(self, args.parens.close)
+			visitor.token(self, args.parens.close)
+			args = visitor.function_args_expr_list_end(self, args)
 		elseif args.kind == "table" then
-			visitor.visit_function_args_table(self, args)
-			visit_table(self, visitor, args.table)
+			args = visitor.function_args_table(self, args)
+			args.table = visit_table(self, visitor, args.table)
+			args = visitor.function_args_table_end(self, args)
 		elseif args.kind == "string" then
-			visitor.visit_function_args_string(self, args)
-			visitor.visit_token(self, args.tok)
+			args = visitor.function_args_string(self, args)
+			visitor.token(self, args.tok)
+			args = visitor.function_args_string_end(self, args)
+		else
+			error("unreachable")
 		end
+
+		return visitor.function_args_end(self, args)
 	end
 
-	function visit_table<Self>(self: Self, visitor: Visitor<Self>, table: AstTable)
-		visitor.visit_table(self, table)
-		visitor.visit_token(self, table.braces.open)
+	function visit_table<Self>(self: Self, visitor: Visitor<Self>, table: AstTable): AstTable
+		table = visitor.table(self, table)
+		visitor.token(self, table.braces.open)
 
 		for _, pair in table.fields do
 			local field, sep = pair.item, pair.sep
-
-			visitor.visit_table_field(self, field)
+			field = visitor.table_field(self, field)
 
 			if field.kind == "exprkey" then
-				visitor.visit_table_field_expr_key(self, field)
-				visitor.visit_token(self, field.bracks.open)
-				visit_expr(self, visitor, field.key)
-				visitor.visit_token(self, field.bracks.close)
-				visitor.visit_token(self, field.eq)
-				visit_expr(self, visitor, field.value)
+				field = visitor.table_field_expr_key(self, field)
+				visitor.token(self, field.bracks.open)
+				field.key = visit_expr(self, visitor, field.key)
+				visitor.token(self, field.bracks.close)
+				visitor.token(self, field.eq)
+				field.value = visit_expr(self, visitor, field.value)
+				field = visitor.table_field_expr_key_end(self, field)
 			elseif field.kind == "namekey" then
-				visitor.visit_table_field_name_key(self, field)
-				visitor.visit_token(self, field.key)
-				visitor.visit_token(self, field.eq)
-				visit_expr(self, visitor, field.value)
+				field = visitor.table_field_name_key(self, field)
+				visitor.token(self, field.key)
+				visitor.token(self, field.eq)
+				field.value = visit_expr(self, visitor, field.value)
+				field = visitor.table_field_name_key_end(self, field)
 			elseif field.kind == "nokey" then
-				visitor.visit_table_field_no_key(self, field)
-				visit_expr(self, visitor, field.value)
+				field = visitor.table_field_no_key(self, field)
+				field.value = visit_expr(self, visitor, field.value)
+				field = visitor.table_field_no_key_end(self, field)
 			end
 
+			pair.item = visitor.table_field_end(self, field)
+
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
-		visitor.visit_token(self, table.braces.close)
+		visitor.token(self, table.braces.close)
+		return visitor.table_end(self, table)
 	end
 
-	function visit_function_body<Self>(self: Self, visitor: Visitor<Self>, body: AstFunctionBody)
-		visitor.visit_function_body(self, body)
+	function visit_function_body<Self>(self: Self, visitor: Visitor<Self>, body: AstFunctionBody): AstFunctionBody
+		body = visitor.function_body(self, body)
 
 		if body.generics then
-			visit_generic_type_list(self, visitor, body.generics)
+			body.generics = visit_generic_type_list(self, visitor, body.generics)
 		end
 
-		visitor.visit_token(self, body.parens.open)
+		visitor.token(self, body.parens.open)
 
 		for _, pair in body.params do
-			local param, sep = pair.item, pair.sep
+			local binding, sep = pair.item, pair.sep
 
-			visit_binding(self, visitor, param)
+			binding = visit_binding(self, visitor, binding)
+			pair.item = binding
 
 			if sep then
-				visitor.visit_token(self, sep)
+				visitor.token(self, sep)
 			end
 		end
 
 		if body.varargs then
-			visitor.visit_token(self, body.varargs.dots)
+			visitor.token(self, body.varargs.dots)
 
 			if body.varargs.type then
-				visitor.visit_token(self, body.varargs.type.colon)
+				visitor.token(self, body.varargs.type.colon)
+				local type = body.varargs.type.type
 
-				if body.varargs.type.type.kind == "generic" then
-					visit_type_pack(self, visitor, body.varargs.type.type)
+				if type.kind == "generic" then
+					type = visitor.type_pack_generic(self, type)
+					visitor.token(self, type.name)
+					visitor.token(self, type.dots)
+					type = visitor.type_pack_generic_end(self, type)
 				else
-					visit_type(self, visitor, body.varargs.type.type)
+					type = visit_type(self, visitor, type)
 				end
+
+				body.varargs.type.type = type
 			end
 		end
 
-		visitor.visit_token(self, body.parens.close)
+		visitor.token(self, body.parens.close)
 
 		if body.returns then
-			visitor.visit_token(self, body.returns.colon)
-			visit_return_type(self, visitor, body.returns.type)
+			visitor.token(self, body.returns.colon)
+			body.returns.type = visit_return_type(self, visitor, body.returns.type)
 		end
 
-		visit_block(self, visitor, body.block)
-		visitor.visit_token(self, body.end_tok)
+		body.block = visit_block(self, visitor, body.block)
+		visitor.token(self, body.end_tok)
+		return visitor.function_body_end(self, body)
 	end
 
-	function visit_stat<Self>(self: Self, visitor: Visitor<Self>, stat: AstStat)
-		visitor.visit_stat(self, stat)
+	function visit_stat<Self>(self: Self, visitor: Visitor<Self>, stat: AstStat): AstStat
+		stat = visitor.stat(self, stat)
 
 		if stat.kind == "assign" then
-			visitor.visit_stat_assign(self, stat)
+			stat = visitor.stat_assign(self, stat)
 
 			for _, pair in stat.lhs do
-				local lhs, sep = pair.item, pair.sep
+				local var, sep = pair.item, pair.sep
 
-				visit_var(self, visitor, lhs)
+				var = visit_var(self, visitor, var)
+				pair.item = var
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
-			visitor.visit_token(self, stat.eq)
+			visitor.token(self, stat.eq)
 
 			for _, pair in stat.rhs do
-				local rhs, sep = pair.item, pair.sep
+				local expr, sep = pair.item, pair.sep
 
-				visit_expr(self, visitor, rhs)
+				expr = visit_expr(self, visitor, expr)
+				pair.item = expr
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
+
+			stat = visitor.stat_assign_end(self, stat)
 		elseif stat.kind == "compoundassign" then
-			visitor.visit_stat_compound_assign(self, stat)
-			visit_var(self, visitor, stat.lhs)
-			visitor.visit_compound_op(self, stat.op)
-			visitor.visit_token(self, stat.op)
-			visit_expr(self, visitor, stat.rhs)
+			stat = visitor.stat_compound_assign(self, stat)
+			stat.lhs = visit_var(self, visitor, stat.lhs)
+			visitor.compound_op(self, stat.op)
+			visitor.token(self, stat.op)
+			stat.rhs = visit_expr(self, visitor, stat.rhs)
+			stat = visitor.stat_compound_assign_end(self, stat)
 		elseif stat.kind == "call" then
-			visitor.visit_stat_call(self, stat)
-			visit_function_call(self, visitor, stat.call)
+			stat = visitor.stat_call(self, stat)
+			stat.call = visit_function_call(self, visitor, stat.call)
+			stat = visitor.stat_call_end(self, stat)
 		elseif stat.kind == "do" then
-			visitor.visit_stat_do(self, stat)
-			visitor.visit_token(self, stat.do_tok)
-			visit_block(self, visitor, stat.block)
-			visitor.visit_token(self, stat.end_tok)
+			stat = visitor.stat_do(self, stat)
+			visitor.token(self, stat.do_tok)
+			stat.block = visit_block(self, visitor, stat.block)
+			visitor.token(self, stat.end_tok)
+			stat = visitor.stat_do_end(self, stat)
 		elseif stat.kind == "while" then
-			visitor.visit_stat_while(self, stat)
-			visitor.visit_token(self, stat.while_tok)
-			visit_expr(self, visitor, stat.condition)
-			visitor.visit_token(self, stat.do_tok)
-			visit_block(self, visitor, stat.block)
-			visitor.visit_token(self, stat.end_tok)
+			stat = visitor.stat_while(self, stat)
+			visitor.token(self, stat.while_tok)
+			stat.condition = visit_expr(self, visitor, stat.condition)
+			visitor.token(self, stat.do_tok)
+			stat.block = visit_block(self, visitor, stat.block)
+			visitor.token(self, stat.end_tok)
+			stat = visitor.stat_while_end(self, stat)
 		elseif stat.kind == "repeat" then
-			visitor.visit_stat_repeat(self, stat)
-			visitor.visit_token(self, stat.repeat_tok)
-			visit_block(self, visitor, stat.block)
-			visitor.visit_token(self, stat.until_tok)
-			visit_expr(self, visitor, stat.condition)
+			stat = visitor.stat_repeat(self, stat)
+			visitor.token(self, stat.repeat_tok)
+			stat.block = visit_block(self, visitor, stat.block)
+			visitor.token(self, stat.until_tok)
+			stat.condition = visit_expr(self, visitor, stat.condition)
+			stat = visitor.stat_repeat_end(self, stat)
 		elseif stat.kind == "if" then
-			visitor.visit_stat_if(self, stat)
-			visitor.visit_token(self, stat.if_tok)
-			visit_expr(self, visitor, stat.condition)
-			visitor.visit_token(self, stat.then_tok)
-			visit_block(self, visitor, stat.block)
+			stat = visitor.stat_if(self, stat)
+			visitor.token(self, stat.if_tok)
+			stat.condition = visit_expr(self, visitor, stat.condition)
+			visitor.token(self, stat.then_tok)
+			stat.block = visit_block(self, visitor, stat.block)
 
 			for _, elseif_ in stat.elseifs do
-				visitor.visit_token(self, elseif_.elseif_tok)
-				visit_expr(self, visitor, elseif_.condition)
-				visitor.visit_token(self, elseif_.then_tok)
-				visit_block(self, visitor, elseif_.block)
+				visitor.token(self, elseif_.elseif_tok)
+				elseif_.condition = visit_expr(self, visitor, elseif_.condition)
+				visitor.token(self, elseif_.then_tok)
+				elseif_.block = visit_block(self, visitor, elseif_.block)
 			end
 
 			if stat.else_ then
-				visitor.visit_token(self, stat.else_.else_tok)
-				visit_block(self, visitor, stat.else_.block)
+				visitor.token(self, stat.else_.else_tok)
+				stat.else_.block = visit_block(self, visitor, stat.else_.block)
 			end
 
-			visitor.visit_token(self, stat.end_tok)
+			visitor.token(self, stat.end_tok)
+			stat = visitor.stat_if_end(self, stat)
 		elseif stat.kind == "numericfor" then
-			visitor.visit_stat_numeric_for(self, stat)
-			visitor.visit_token(self, stat.for_tok)
-			visit_binding(self, visitor, stat.binding)
-			visitor.visit_token(self, stat.eq)
-			visit_expr(self, visitor, stat.start)
-			visitor.visit_token(self, stat.comma)
-			visit_expr(self, visitor, stat.finish)
+			stat = visitor.stat_numeric_for(self, stat)
+			visitor.token(self, stat.for_tok)
+			stat.binding = visit_binding(self, visitor, stat.binding)
+			visitor.token(self, stat.eq)
+			stat.start = visit_expr(self, visitor, stat.start)
+			visitor.token(self, stat.comma)
+			stat.finish = visit_expr(self, visitor, stat.finish)
 
 			if stat.step then
-				visitor.visit_token(self, stat.step.comma)
-				visit_expr(self, visitor, stat.step.expr)
+				visitor.token(self, stat.comma)
+				stat.step.expr = visit_expr(self, visitor, stat.step.expr)
 			end
 
-			visitor.visit_token(self, stat.do_tok)
-			visit_block(self, visitor, stat.block)
-			visitor.visit_token(self, stat.end_tok)
+			visitor.token(self, stat.do_tok)
+			stat.block = visit_block(self, visitor, stat.block)
+			visitor.token(self, stat.end_tok)
+			stat = visitor.stat_numeric_for_end(self, stat)
 		elseif stat.kind == "genericfor" then
-			visitor.visit_stat_generic_for(self, stat)
-			visitor.visit_token(self, stat.for_tok)
+			stat = visitor.stat_generic_for(self, stat)
+			visitor.token(self, stat.for_tok)
 
 			for _, pair in stat.bindings do
 				local binding, sep = pair.item, pair.sep
 
-				visit_binding(self, visitor, binding)
+				binding = visit_binding(self, visitor, binding)
+				pair.item = binding
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
-			visitor.visit_token(self, stat.in_tok)
+			visitor.token(self, stat.in_tok)
 
 			for _, pair in stat.exprs do
 				local expr, sep = pair.item, pair.sep
 
-				visit_expr(self, visitor, expr)
+				expr = visit_expr(self, visitor, expr)
+				pair.item = expr
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
-			visitor.visit_token(self, stat.do_tok)
-			visit_block(self, visitor, stat.block)
-			visitor.visit_token(self, stat.end_tok)
+			visitor.token(self, stat.do_tok)
+			stat.block = visit_block(self, visitor, stat.block)
+			visitor.token(self, stat.end_tok)
+			stat = visitor.stat_generic_for_end(self, stat)
 		elseif stat.kind == "function" then
-			visitor.visit_stat_function(self, stat)
+			stat = visitor.stat_function(self, stat)
 
 			for _, attribute in stat.attributes do
-				visitor.visit_token(self, attribute)
+				visitor.token(self, attribute)
 			end
 
-			visitor.visit_token(self, stat.function_tok)
+			visitor.token(self, stat.function_tok)
 
 			for _, pair in stat.names do
 				local name, sep = pair.item, pair.sep
 
-				visitor.visit_token(self, name)
+				visitor.token(self, name)
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
 			if stat.method then
-				visitor.visit_token(self, stat.method.colon)
-				visitor.visit_token(self, stat.method.name)
+				visitor.token(self, stat.method.colon)
+				visitor.token(self, stat.method.name)
 			end
 
-			visit_function_body(self, visitor, stat.body)
+			stat.body = visit_function_body(self, visitor, stat.body)
+			stat = visitor.stat_function_end(self, stat)
 		elseif stat.kind == "localfunction" then
-			visitor.visit_stat_local_function(self, stat)
+			stat = visitor.stat_local_function(self, stat)
 
 			for _, attribute in stat.attributes do
-				visitor.visit_token(self, attribute)
+				visitor.token(self, attribute)
 			end
 
-			visitor.visit_token(self, stat.local_tok)
-			visitor.visit_token(self, stat.function_tok)
-			visitor.visit_token(self, stat.name)
-			visit_function_body(self, visitor, stat.body)
+			visitor.token(self, stat.local_tok)
+			visitor.token(self, stat.function_tok)
+			visitor.token(self, stat.name)
+			stat.body = visit_function_body(self, visitor, stat.body)
+			stat = visitor.stat_local_function_end(self, stat)
 		elseif stat.kind == "localassign" then
-			visitor.visit_stat_local_assign(self, stat)
-			visitor.visit_token(self, stat.local_tok)
+			stat = visitor.stat_local_assign(self, stat)
+			visitor.token(self, stat.local_tok)
 
 			for _, pair in stat.bindings do
 				local binding, sep = pair.item, pair.sep
 
-				visit_binding(self, visitor, binding)
+				binding = visit_binding(self, visitor, binding)
+				pair.item = binding
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 
 			if stat.values then
-				visitor.visit_token(self, stat.values.eq)
+				visitor.token(self, stat.values.eq)
 
 				for _, pair in stat.values.exprs do
 					local expr, sep = pair.item, pair.sep
 
-					visit_expr(self, visitor, expr)
+					expr = visit_expr(self, visitor, expr)
+					pair.item = expr
 
 					if sep then
-						visitor.visit_token(self, sep)
+						visitor.token(self, sep)
 					end
 				end
 			end
+
+			stat = visitor.stat_local_assign_end(self, stat)
 		elseif stat.kind == "type" then
-			visitor.visit_stat_type(self, stat)
+			stat = visitor.stat_type(self, stat)
 
 			if stat.export_tok then
-				visitor.visit_token(self, stat.export_tok :: any)
+				visitor.token(self, stat.export_tok :: any)
 			end
 
-			visitor.visit_token(self, stat.type_tok :: any)
-			visitor.visit_token(self, stat.name)
+			visitor.token(self, stat.type_tok :: any)
+			visitor.token(self, stat.name)
 
 			if stat.generics then
-				visit_generic_type_list_with_defaults(self, visitor, stat.generics)
+				stat.generics = visit_generic_type_list_with_defaults(self, visitor, stat.generics)
 			end
 
-			visitor.visit_token(self, stat.eq)
-			visit_type(self, visitor, stat.type)
+			visitor.token(self, stat.eq)
+			stat.type = visit_type(self, visitor, stat.type)
+			stat = visitor.stat_type_end(self, stat)
 		end
+
+		return visitor.stat_end(self, stat)
 	end
 
-	function visit_last_stat<Self>(self: Self, visitor: Visitor<Self>, stat: AstLastStat)
-		visitor.visit_last_stat(self, stat)
+	function visit_laststat<Self>(self: Self, visitor: Visitor<Self>, stat: AstLastStat): AstLastStat
+		stat = visitor.laststat(self, stat)
 
 		if stat.kind == "return" then
-			visitor.visit_last_stat_return(self, stat)
-			visitor.visit_token(self, stat.return_tok)
+			stat = visitor.laststat_return(self, stat)
+			visitor.token(self, stat.return_tok)
 
 			for _, pair in stat.exprs do
 				local expr, sep = pair.item, pair.sep
 
-				visit_expr(self, visitor, expr)
+				expr = visit_expr(self, visitor, expr)
+				pair.item = expr
 
 				if sep then
-					visitor.visit_token(self, sep)
+					visitor.token(self, sep)
 				end
 			end
 		elseif stat.kind == "break" then
-			visitor.visit_last_stat_break(self, stat)
-			visitor.visit_token(self, stat.tok)
+			stat = visitor.laststat_break(self, stat)
+			visitor.token(self, stat.tok)
+			stat = visitor.laststat_break_end(self, stat)
 		elseif stat.kind == "continue" then
-			visitor.visit_last_stat_continue(self, stat)
-			visitor.visit_token(self, stat.tok :: any)
+			stat = visitor.laststat_continue(self, stat)
+			visitor.token(self, stat.tok :: any)
+			stat = visitor.laststat_continue_end(self, stat)
 		end
+
+		return visitor.laststat_end(self, stat)
 	end
 
-	function visit_block<Self>(self: Self, visitor: Visitor<Self>, block: AstBlock)
-		visitor.visit_block(self, block)
+	function visit_block<Self>(self: Self, visitor: Visitor<Self>, block: AstBlock): AstBlock
+		block = visitor.block(self, block)
 
-		for _, pair in block.stats do
-			local stat, sep = pair.stat, pair.semicolon
+		for _, stat in block.stats do
+			stat.stat = visit_stat(self, visitor, stat.stat)
 
-			visit_stat(self, visitor, stat)
+			local semicolon = stat.semicolon
 
-			if sep then
-				visitor.visit_token(self, sep)
+			if semicolon then
+				visitor.token(self, semicolon)
 			end
 		end
 
-		if block.laststat then
-			visit_last_stat(self, visitor, block.laststat.stat)
+		local laststat = block.laststat
 
-			if block.laststat.semicolon then
-				visitor.visit_token(self, block.laststat.semicolon)
+		if laststat then
+			laststat.stat = visit_laststat(self, visitor, laststat.stat)
+
+			local semicolon = laststat.semicolon
+
+			if semicolon then
+				visitor.token(self, semicolon)
 			end
 		end
+
+		return visitor.block_end(self, block)
 	end
 
-	function ast_visit<Self>(self: Self, visitor: Visitor<Self>, ast: Ast)
-		visitor.visit_ast(self, ast)
-		visit_block(self, visitor, ast.block)
-		visitor.visit_token(self, ast.eof)
+	function ast_visit<Self>(self: Self, visitor: Visitor<Self>, ast: Ast): Ast
+		ast = visitor.ast(self, ast)
+
+		ast.block = visit_block(self, visitor, ast.block)
+		visitor.token(self, ast.eof)
+
+		return visitor.ast_end(self, ast)
 	end
 end
 
@@ -2838,10 +3105,7 @@ do
 				local dots = state_expect(state, "...") :: TokenType<"...">
 
 				if state_current(state).kind == "," then
-					table.insert(
-						packs,
-						{ item = { name = name, dots = dots }, sep = state_consume(state) :: TokenType<","> }
-					)
+					table.insert(packs, { item = { name = name, dots = dots }, sep = state_consume(state) :: TokenType<","> })
 				else
 					table.insert(packs, { item = { name = name, dots = dots }, sep = nil })
 					break
@@ -2938,11 +3202,7 @@ do
 						if maybe_pack.kind == "list" then
 							pack = maybe_pack
 						elseif maybe_pack.kind == "function" then
-							state_report(
-								state,
-								ast_span_type(maybe_pack),
-								"expected type pack after '=', found function type"
-							)
+							state_report(state, ast_span_type(maybe_pack), "expected type pack after '=', found function type")
 						else
 							error("unreachable")
 						end
@@ -3003,10 +3263,7 @@ do
 				local type = parse_type(state)
 
 				if state_current(state).kind == "," then
-					table.insert(
-						params,
-						{ item = { name = name, type = type }, sep = state_consume(state) :: TokenType<","> }
-					)
+					table.insert(params, { item = { name = name, type = type }, sep = state_consume(state) :: TokenType<","> })
 				else
 					table.insert(params, { item = { name = name, type = type }, sep = nil })
 					return params, nil
@@ -3243,7 +3500,7 @@ do
 				local params: AstSeparated<TokenType<",">, {
 					name: { name: TokenIdent, colon: TokenType<":"> }?,
 					type: AstType,
-				}>, tail: (AstTypePackVariadic | AstTypePackGeneric)?
+				}>, tail: AstTypePackTail?
 
 				if state_current(state).kind ~= ")" then
 					params, tail = parse_function_type_params(state)
@@ -3395,7 +3652,7 @@ do
 			local params: AstSeparated<TokenType<",">, {
 				name: { name: TokenIdent, colon: TokenType<":"> }?,
 				type: AstType,
-			}>, tail: (AstTypePackVariadic | AstTypePackGeneric)?
+			}>, tail: AstTypePackTail?
 
 			if state_current(state).kind ~= ")" then
 				params, tail = parse_function_type_params(state)
@@ -3482,7 +3739,7 @@ do
 			elseif current.kind == "..." then
 				state_consume(state)
 				return { kind = "varargs", tok = current }
-			elseif current.kind == "istringbegin" then
+			elseif current.kind == "istringbegin" or current.kind == "istringsimple" then
 				local istring = parse_istring(state)
 
 				return { kind = "istring", istring = istring }
@@ -3741,8 +3998,7 @@ do
 				tok = name,
 			}
 		else
-			local message = `expected 'ident' or parenthesized expression,`
-				.. ` but got {token_error(state_current(state))} instead`
+			local message = `expected 'ident' or parenthesized expression,` .. ` but got {token_error(state_current(state))} instead`
 
 			return state_report_at_current(state, message)
 		end
@@ -3880,7 +4136,9 @@ do
 	end
 
 	function parse_function_args(state: State): AstFunctionArgs
-		if state_current(state).kind == "(" then
+		local current = state_current(state)
+
+		if current.kind == "(" then
 			local open = state_consume(state) :: TokenType<"(">
 			local exprs: AstSeparated<TokenType<",">, AstExpr> = {}
 
@@ -3904,14 +4162,14 @@ do
 				parens = { open = open, close = close },
 				exprs = exprs,
 			}
-		elseif state_current(state).kind == "{" then
+		elseif current.kind == "{" then
 			local table = parse_table(state)
 
 			return {
 				kind = "table",
 				table = table,
 			}
-		elseif state_current(state).kind == "string" then
+		elseif current.kind == "string" then
 			local tok = state_consume(state) :: TokenString
 
 			return {
@@ -4158,10 +4416,7 @@ do
 			}
 		end
 
-		local function parse_stat_local(
-			state: State,
-			attributes: { TokenAttribute }
-		): AstStatLocalFunction | AstStatLocalAssign
+		local function parse_stat_local(state: State, attributes: { TokenAttribute }): AstStatLocalFunction | AstStatLocalAssign
 			local local_tok = state_consume(state) :: TokenType<"local">
 
 			if state_current(state).kind == "function" then
@@ -4232,11 +4487,7 @@ do
 		end
 
 		local function tok_ends_block(tok: Token): boolean
-			return tok.kind == "end"
-				or tok.kind == "else"
-				or tok.kind == "elseif"
-				or tok.kind == "until"
-				or tok.kind == "eof"
+			return tok.kind == "end" or tok.kind == "else" or tok.kind == "elseif" or tok.kind == "until" or tok.kind == "eof"
 		end
 
 		local function parse_laststat_return(state: State): AstLastStatReturn
@@ -4385,10 +4636,7 @@ do
 						type_tok = state_current(state)
 
 						if type_tok.kind ~= "ident" or type_tok.value ~= "type" then
-							state_report_at_current(
-								state,
-								`expected 'type' after 'export', but got '{type_tok.kind}' instead`
-							)
+							state_report_at_current(state, `expected 'type' after 'export', but got '{type_tok.kind}' instead`)
 						else
 							state_consume(state)
 						end
@@ -4438,9 +4686,7 @@ do
 				end
 
 				local stat = parse_stat(state)
-				local semicolon = if state_current(state).kind == ";"
-					then state_consume(state) :: TokenType<";">
-					else nil
+				local semicolon = if state_current(state).kind == ";" then state_consume(state) :: TokenType<";"> else nil
 
 				if stat.kind == "return" or stat.kind == "break" or stat.kind == "continue" then
 					laststat = { stat = stat, semicolon = semicolon }
@@ -4512,7 +4758,7 @@ local ast_display: (Ast) -> string
 do
 	local visitor = visitor_new()
 
-	function visitor.visit_token(self: { buf: buffer, pos: number }, token: Token)
+	function visitor.token(self: { buf: buffer, pos: number }, token: Token)
 		for _, trivia in token.trivia do
 			write(self, trivia.value)
 		end
@@ -4544,7 +4790,7 @@ local ast_tokens: (Ast) -> { Token }
 do
 	local visitor = visitor_new()
 
-	function visitor.visit_token(self: { Token }, token: Token)
+	function visitor.token(self: { Token }, token: Token)
 		table.insert(self, token)
 	end
 
@@ -4593,7 +4839,7 @@ return {
 			table_field = ast_span_table_field,
 			function_body = ast_span_function_body,
 			stat = ast_span_stat,
-			last_stat = ast_span_last_stat,
+			laststat = ast_span_laststat,
 			block = ast_span_block,
 		},
 	},
