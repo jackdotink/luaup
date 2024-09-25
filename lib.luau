@@ -2351,12 +2351,14 @@ do
 		elseif expr.kind == "unary" then
 			visitor.visit_expr_unary(self, expr)
 			visitor.visit_unary_operator(self, expr.operator)
+			visitor.visit_token(self, expr.operator)
 			visit_expr(self, visitor, expr.expr)
 			visitor.visit_expr_unary_end(self, expr)
 		elseif expr.kind == "binary" then
 			visitor.visit_expr_binary(self, expr)
 			visit_expr(self, visitor, expr.left)
 			visitor.visit_binary_operator(self, expr.operator)
+			visitor.visit_token(self, expr.operator)
 			visit_expr(self, visitor, expr.right)
 			visitor.visit_expr_binary_end(self, expr)
 		end
@@ -2576,6 +2578,7 @@ do
 			visitor.visit_stat_compoundassign(self, stat)
 			visit_var(self, visitor, stat.left)
 			visitor.visit_compound_operator(self, stat.operator)
+			visitor.visit_token(self, stat.operator)
 			visit_expr(self, visitor, stat.right)
 			visitor.visit_stat_compoundassign_end(self, stat)
 		elseif stat.kind == "call" then
@@ -2805,6 +2808,7 @@ do
 
 		if laststat.kind == "return" then
 			visitor.visit_laststat_return(self, laststat)
+			visitor.visit_token(self, laststat.return_tok)
 
 			for _, pair in laststat.exprs do
 				local node, sep = pair.node, pair.sep
@@ -5682,7 +5686,7 @@ do
 						kind = "localvariable",
 						local_tok = local_tok,
 						bindings = bindings,
-						value = {
+						values = {
 							equals = equals,
 							exprs = exprs,
 						},
@@ -5692,7 +5696,7 @@ do
 						kind = "localvariable",
 						local_tok = local_tok,
 						bindings = bindings,
-						value = nil,
+						values = nil,
 					}
 				end
 			end
@@ -5948,8 +5952,6 @@ do
 	end
 end
 
-local print: (ast: Ast) -> string
-
 do
 	local buf = buffer.create(1024)
 	local pos = 0
@@ -6000,7 +6002,7 @@ do
 
 	local visit = ast.visit
 
-	function print(ast: Ast): string
+	function ast.print(ast: Ast): string
 		pos = 0
 		visit(nil, printer, ast)
 		return buffer.readstring(buf, 0, pos)
@@ -6012,6 +6014,4 @@ return {
 	tokens = tokens,
 
 	visitor = visitor,
-
-	print = print,
 }
