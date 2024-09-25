@@ -5,5 +5,9 @@
 	"luau-lsp.sourcemap.enabled": false,
 	"luau-lsp.require.directoryAliases": {
 		"@lune/": "~/.lune/.typedefs/0.8.6/"
-	}
+	},
+	"luau-lsp.fflags.override": {
+		"LuauSolverV2": "true",
+	},
+	"luau-lsp.completion.autocompleteEnd": false,
 }
