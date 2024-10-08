@@ -5092,7 +5092,7 @@ do
 
 			if kind == "+" or kind == "-" then
 				return 6, 6
-			elseif kind == "*" or kind == "/" or kind == "//" or kind == "&" then
+			elseif kind == "*" or kind == "/" or kind == "//" or kind == "%" then
 				return 7, 7
 			elseif kind == "^" then
 				return 10, 9
