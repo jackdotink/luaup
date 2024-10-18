@@ -2,6 +2,10 @@
 --- each character in such a way so that when the AST is displayed it matches
 --- the parsed text exactly.
 
+local function unreachable(_: never): never
+	error("unreachable")
+end
+
 --- Stores the locational information of a token or AST node.
 --- 
 --- Components:
@@ -3013,7 +3017,7 @@ do
 			elseif node.kind == "stringprop" or node.kind == "indexer" then
 				span = node.bracks.open.span
 			else
-				error("unreachable")
+				unreachable(node.kind)
 			end
 
 			return merge(span, span_type(node.type))
@@ -3083,7 +3087,7 @@ do
 				span_type(last.node)
 			) :: Span
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3105,7 +3109,7 @@ do
 				parens.close.span
 			)
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3145,7 +3149,7 @@ do
 				last.span
 			)
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3206,7 +3210,7 @@ do
 				span_expr(node.right)
 			)
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3222,7 +3226,7 @@ do
 		elseif node.kind == "string" then
 			return node.tok.span
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3235,7 +3239,7 @@ do
 				node.parens.close.span
 			)
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3264,7 +3268,7 @@ do
 				return span_function_arg(arg)
 			end
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3297,7 +3301,7 @@ do
 		elseif node.kind == "nokey" then
 			return span_expr(node.value)
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3445,7 +3449,7 @@ do
 				)
 			end
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -3461,7 +3465,7 @@ do
 		elseif node.kind == "break" or node.kind == "continue" then
 			return node.tok.span
 		else
-			error("unreachable")
+			return unreachable(node.kind)
 		end
 	end
 
@@ -4271,7 +4275,7 @@ do
 				local dots = consume() :: TokenKind<"...">
 				return { kind = "generic", name = name, dots = dots }
 			else
-				error("unreachable")
+				error("internal: parse_tail_type called in invalid position")
 			end
 		end
 
@@ -4354,7 +4358,7 @@ do
 						elseif maybe_pack.kind == "function" then
 							report("expected type pack after '=', found function type", ast.span.type(maybe_pack))
 						else
-							error("unreachable")
+							error("internal: parse_simple_type did not return a list or function type at '(' token")
 						end
 					else
 						report(`expected type pack after '=', found {display(current_token)}`)
@@ -4734,7 +4738,7 @@ do
 				elseif leading.kind == "&" then
 					is_intersection = true
 				else
-					error("unreachable")
+					error("internal: invalid leading token")
 				end
 			end
 
@@ -4793,7 +4797,7 @@ do
 					types = types :: AstSeparated<AstType, TokenKind<"&">>,
 				}
 			else
-				error("unreachable")
+				error("internal: reached end of parse_type_suffix without is_union or is_intersection set")
 			end
 		end
 
@@ -5165,7 +5169,7 @@ do
 			elseif kind == "or" then
 				return 1, 1
 			else
-				error("unreachable")
+				return unreachable(kind), 0
 			end
 		end
 
