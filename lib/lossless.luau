@@ -1,3 +1,4 @@
+--!optimize 2
 --- This is a lossless luau parser implemented in luau. When parsing it tracks
 --- each character in such a way so that when the AST is displayed it matches
 --- the parsed text exactly.
@@ -3574,7 +3575,9 @@ do
 		local brace_count: number
 		local brace_stack: { number } = {}
 
-		local char: (c: string) -> number = string.byte :: any
+		local function char(c: string): number
+			return string.byte(c) :: number
+		end
 
 		local function peek(): number
 			return buffer.readu8(buf, pos) :: any
