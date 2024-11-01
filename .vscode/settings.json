@@ -1,4 +1,14 @@
 {
+	"emeraldwalk.runonsave": {
+		"autoClearConsole": true,
+		"commands": [
+			{
+				"match": "\\.luau$",
+				"cmd": "cd ${fileDirname};luau-analyze --mode=strict --fflags=true ./${fileBasename}",
+				"messageAfter": "Done",
+			}
+		]
+	},
 	"[luau]": {
 		"editor.formatOnSave": false,
 	},
@@ -12,6 +22,7 @@
 	},
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true",
+		"LuauTypeSolverRelease": "649",
 	},
 	"luau-lsp.ignoreGlobs": [
 		"**/cases/**",

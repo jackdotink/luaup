@@ -1,7 +1,7 @@
 local luau = require("@lune/luau")
 local fs = require("@lune/fs")
 
-local lossless_source = fs.readFile("lib/lossless.luau")
+local lossless_source = fs.readFile("lossless/parse.luau")
 
 local lossless_bytecode = luau.compile(lossless_source, {
 	optimizationLevel = 2,
@@ -9,19 +9,19 @@ local lossless_bytecode = luau.compile(lossless_source, {
 	debugLevel = 1,
 })
 
-local lossless_bytecode_runner = luau.load(lossless_bytecode, {
+local lossless_bytecode_parser = luau.load(lossless_bytecode, {
 	codegenEnabled = false,
 })()
 
-local lossless_native_runner = luau.load(lossless_bytecode, {
+local lossless_native_parser = luau.load(lossless_bytecode, {
 	codegenEnabled = true,
 })()
 
 local bytecode = luau.compile([[
-local luaup, code = ...
+local parse, code = ...
 
 local start = os.clock()
-local result = luaup.ast.parse(code)
+local result = parse(code)
 local stop = os.clock()
 
 return stop - start, result
@@ -70,26 +70,26 @@ end
 
 print("Running benchmarks to warm up...")
 
-run(bytecode_runner, lossless_bytecode_runner, fs.readFile("lib/lossless.luau"), "lossless.luau")
+run(bytecode_runner, lossless_bytecode_parser, fs.readFile("lib/lossless.luau"), "lossless.luau")
 
 for _, name in fs.readDir("bench/cases") do
-	run(bytecode_runner, lossless_bytecode_runner, fs.readFile(`bench/cases/{name}`), name)
+	run(bytecode_runner, lossless_bytecode_parser, fs.readFile(`bench/cases/{name}`), name)
 end
 
-run(native_runner, lossless_native_runner, fs.readFile("lib/lossless.luau"), "lossless.luau")
+run(native_runner, lossless_native_parser, fs.readFile("lib/lossless.luau"), "lossless.luau")
 
 for _, name in fs.readDir("bench/cases") do
-	run(native_runner, lossless_native_runner, fs.readFile(`bench/cases/{name}`), name)
+	run(native_runner, lossless_native_parser, fs.readFile(`bench/cases/{name}`), name)
 end
 
 output = {}
 
 print("Running bytecode benchmarks...")
 
-run(bytecode_runner, lossless_bytecode_runner, fs.readFile("lib/lossless.luau"), "lossless.luau")
+run(bytecode_runner, lossless_bytecode_parser, fs.readFile("lib/lossless.luau"), "lossless.luau")
 
 for _, name in fs.readDir("bench/cases") do
-	run(bytecode_runner, lossless_bytecode_runner, fs.readFile(`bench/cases/{name}`), name)
+	run(bytecode_runner, lossless_bytecode_parser, fs.readFile(`bench/cases/{name}`), name)
 end
 
 print_output()
@@ -97,10 +97,10 @@ output = {}
 
 print("Running native benchmarks...")
 
-run(native_runner, lossless_native_runner, fs.readFile("lib/lossless.luau"), "lossless.luau")
+run(native_runner, lossless_native_parser, fs.readFile("lib/lossless.luau"), "lossless.luau")
 
 for _, name in fs.readDir("bench/cases") do
-	run(native_runner, lossless_native_runner, fs.readFile(`bench/cases/{name}`), name)
+	run(native_runner, lossless_native_parser, fs.readFile(`bench/cases/{name}`), name)
 end
 
 print_output()
