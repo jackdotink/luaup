@@ -10,10 +10,10 @@ export type Span = { read x: number, read y: number, read z: number }
 export type Trivia =
 	--- Holds a segment of whitespace. Note that the luaup lexer will lex
 	--- multiple characters of whitespace into a single whitespace trivia.
-	| { read kind: "whitespace", read text: string, read span: Span }
+	| { kind: "whitespace", text: string, span: Span }
 	--- Holds a comment. Note that the comment header (`--` or `--[[]]`) is
 	--- included in the text field.
-	| { read kind: "comment", read text: string, read span: Span }
+	| { kind: "comment", text: string, span: Span }
 
 --- A token, such as an identifier, number, string, keyword, or symbol.
 --- 
@@ -26,157 +26,157 @@ export type Trivia =
 --- instance, such as identifiers or strings.
 export type Token =
 	--- The end of file.
-	| { read kind: "eof", read span: Span, read trivia: { Trivia } }
+	| { kind: "eof", span: Span, trivia: { Trivia } }
 	--- An error token, emitted when the lexer encounters an unknown character
 	--- or a broken string or number.
-	| { read kind: "error", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "error", text: string, span: Span, trivia: { Trivia } }
 	--- An identifier, such as `foo` or `bar`.
-	| { read kind: "ident", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "ident", text: string, span: Span, trivia: { Trivia } }
 	--- A number, such as `123.456` or `0xABCD`.
-	| { read kind: "number", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "number", text: string, span: Span, trivia: { Trivia } }
 	--- A string, such as `"foo"` or `'bar'` or `[[baz]]`.
-	| { read kind: "string", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "string", text: string, span: Span, trivia: { Trivia } }
 	--- An interpolated string with no expr segments, such as `'simple'`.
-	| { read kind: "istring_simple", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "istring_simple", text: string, span: Span, trivia: { Trivia } }
 	--- The first segment of an interpolated string, such as `'start{`
-	| { read kind: "istring_first", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "istring_first", text: string, span: Span, trivia: { Trivia } }
 	--- A middle segment of an interpolated string, such as `}middle{`.
-	| { read kind: "istring_middle", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "istring_middle", text: string, span: Span, trivia: { Trivia } }
 	--- The last segment of an interpolated string, such as `}last'`.
-	| { read kind: "istring_last", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "istring_last", text: string, span: Span, trivia: { Trivia } }
 	--- A function attribute, such as `@native`.
-	| { read kind: "attribute", read text: string, read span: Span, read trivia: { Trivia } }
+	| { kind: "attribute", text: string, span: Span, trivia: { Trivia } }
 	--- The `and` keyword.
-	| { read kind: "and", read span: Span, read trivia: { Trivia } }
+	| { kind: "and", span: Span, trivia: { Trivia } }
 	--- The `break` keyword.
-	| { read kind: "break", read span: Span, read trivia: { Trivia } }
+	| { kind: "break", span: Span, trivia: { Trivia } }
 	--- The `do` keyword.
-	| { read kind: "do", read span: Span, read trivia: { Trivia } }
+	| { kind: "do", span: Span, trivia: { Trivia } }
 	--- The `else` keyword.
-	| { read kind: "else", read span: Span, read trivia: { Trivia } }
+	| { kind: "else", span: Span, trivia: { Trivia } }
 	--- The `elseif` keyword.
-	| { read kind: "elseif", read span: Span, read trivia: { Trivia } }
+	| { kind: "elseif", span: Span, trivia: { Trivia } }
 	--- The `end` keyword.
-	| { read kind: "end", read span: Span, read trivia: { Trivia } }
+	| { kind: "end", span: Span, trivia: { Trivia } }
 	--- The `false` keyword.
-	| { read kind: "false", read span: Span, read trivia: { Trivia } }
+	| { kind: "false", span: Span, trivia: { Trivia } }
 	--- The `for` keyword.
-	| { read kind: "for", read span: Span, read trivia: { Trivia } }
+	| { kind: "for", span: Span, trivia: { Trivia } }
 	--- The `function` keyword.
-	| { read kind: "function", read span: Span, read trivia: { Trivia } }
+	| { kind: "function", span: Span, trivia: { Trivia } }
 	--- The `if` keyword.
-	| { read kind: "if", read span: Span, read trivia: { Trivia } }
+	| { kind: "if", span: Span, trivia: { Trivia } }
 	--- The `in` keyword.
-	| { read kind: "in", read span: Span, read trivia: { Trivia } }
+	| { kind: "in", span: Span, trivia: { Trivia } }
 	--- The `local` keyword.
-	| { read kind: "local", read span: Span, read trivia: { Trivia } }
+	| { kind: "local", span: Span, trivia: { Trivia } }
 	--- The `nil` keyword.
-	| { read kind: "nil", read span: Span, read trivia: { Trivia } }
+	| { kind: "nil", span: Span, trivia: { Trivia } }
 	--- The `not` keyword.
-	| { read kind: "not", read span: Span, read trivia: { Trivia } }
+	| { kind: "not", span: Span, trivia: { Trivia } }
 	--- The `or` keyword.
-	| { read kind: "or", read span: Span, read trivia: { Trivia } }
+	| { kind: "or", span: Span, trivia: { Trivia } }
 	--- The `repeat` keyword.
-	| { read kind: "repeat", read span: Span, read trivia: { Trivia } }
+	| { kind: "repeat", span: Span, trivia: { Trivia } }
 	--- The `return` keyword.
-	| { read kind: "return", read span: Span, read trivia: { Trivia } }
+	| { kind: "return", span: Span, trivia: { Trivia } }
 	--- The `then` keyword.
-	| { read kind: "then", read span: Span, read trivia: { Trivia } }
+	| { kind: "then", span: Span, trivia: { Trivia } }
 	--- The `true` keyword.
-	| { read kind: "true", read span: Span, read trivia: { Trivia } }
+	| { kind: "true", span: Span, trivia: { Trivia } }
 	--- The `until` keyword.
-	| { read kind: "until", read span: Span, read trivia: { Trivia } }
+	| { kind: "until", span: Span, trivia: { Trivia } }
 	--- The `while` keyword.
-	| { read kind: "while", read span: Span, read trivia: { Trivia } }
+	| { kind: "while", span: Span, trivia: { Trivia } }
 	--- The `+=` symbol.
-	| { read kind: "+=", read span: Span, read trivia: { Trivia } }
+	| { kind: "+=", span: Span, trivia: { Trivia } }
 	--- The `-=` symbol.
-	| { read kind: "-=", read span: Span, read trivia: { Trivia } }
+	| { kind: "-=", span: Span, trivia: { Trivia } }
 	--- The `*=` symbol.
-	| { read kind: "*=", read span: Span, read trivia: { Trivia } }
+	| { kind: "*=", span: Span, trivia: { Trivia } }
 	--- The `/=` symbol.
-	| { read kind: "/=", read span: Span, read trivia: { Trivia } }
+	| { kind: "/=", span: Span, trivia: { Trivia } }
 	--- The `//=` symbol.
-	| { read kind: "//=", read span: Span, read trivia: { Trivia } }
+	| { kind: "//=", span: Span, trivia: { Trivia } }
 	--- The `%=` symbol.
-	| { read kind: "%=", read span: Span, read trivia: { Trivia } }
+	| { kind: "%=", span: Span, trivia: { Trivia } }
 	--- The `^=` symbol.
-	| { read kind: "^=", read span: Span, read trivia: { Trivia } }
+	| { kind: "^=", span: Span, trivia: { Trivia } }
 	--- The `..=` symbol.
-	| { read kind: "..=", read span: Span, read trivia: { Trivia } }
+	| { kind: "..=", span: Span, trivia: { Trivia } }
 	--- The `+` symbol.
-	| { read kind: "+", read span: Span, read trivia: { Trivia } }
+	| { kind: "+", span: Span, trivia: { Trivia } }
 	--- The `-` symbol.
-	| { read kind: "-", read span: Span, read trivia: { Trivia } }
+	| { kind: "-", span: Span, trivia: { Trivia } }
 	--- The `*` symbol.
-	| { read kind: "*", read span: Span, read trivia: { Trivia } }
+	| { kind: "*", span: Span, trivia: { Trivia } }
 	--- The `/` symbol.
-	| { read kind: "/", read span: Span, read trivia: { Trivia } }
+	| { kind: "/", span: Span, trivia: { Trivia } }
 	--- The `//` symbol.
-	| { read kind: "//", read span: Span, read trivia: { Trivia } }
+	| { kind: "//", span: Span, trivia: { Trivia } }
 	--- The `%` symbol.
-	| { read kind: "%", read span: Span, read trivia: { Trivia } }
+	| { kind: "%", span: Span, trivia: { Trivia } }
 	--- The `^` symbol.
-	| { read kind: "^", read span: Span, read trivia: { Trivia } }
+	| { kind: "^", span: Span, trivia: { Trivia } }
 	--- The `..` symbol.
-	| { read kind: "..", read span: Span, read trivia: { Trivia } }
+	| { kind: "..", span: Span, trivia: { Trivia } }
 	--- The `<` symbol.
-	| { read kind: "<", read span: Span, read trivia: { Trivia } }
+	| { kind: "<", span: Span, trivia: { Trivia } }
 	--- The `<=` symbol.
-	| { read kind: "<=", read span: Span, read trivia: { Trivia } }
+	| { kind: "<=", span: Span, trivia: { Trivia } }
 	--- The `>` symbol.
-	| { read kind: ">", read span: Span, read trivia: { Trivia } }
+	| { kind: ">", span: Span, trivia: { Trivia } }
 	--- The `>=` symbol.
-	| { read kind: ">=", read span: Span, read trivia: { Trivia } }
+	| { kind: ">=", span: Span, trivia: { Trivia } }
 	--- The `==` symbol.
-	| { read kind: "==", read span: Span, read trivia: { Trivia } }
+	| { kind: "==", span: Span, trivia: { Trivia } }
 	--- The `~=` symbol.
-	| { read kind: "~=", read span: Span, read trivia: { Trivia } }
+	| { kind: "~=", span: Span, trivia: { Trivia } }
 	--- The `#` symbol.
-	| { read kind: "#", read span: Span, read trivia: { Trivia } }
+	| { kind: "#", span: Span, trivia: { Trivia } }
 	--- The `...` symbol.
-	| { read kind: "...", read span: Span, read trivia: { Trivia } }
+	| { kind: "...", span: Span, trivia: { Trivia } }
 	--- The `&` symbol.
-	| { read kind: "&", read span: Span, read trivia: { Trivia } }
+	| { kind: "&", span: Span, trivia: { Trivia } }
 	--- The `|` symbol.
-	| { read kind: "|", read span: Span, read trivia: { Trivia } }
+	| { kind: "|", span: Span, trivia: { Trivia } }
 	--- The `?` symbol.
-	| { read kind: "?", read span: Span, read trivia: { Trivia } }
+	| { kind: "?", span: Span, trivia: { Trivia } }
 	--- The `:` symbol.
-	| { read kind: ":", read span: Span, read trivia: { Trivia } }
+	| { kind: ":", span: Span, trivia: { Trivia } }
 	--- The `::` symbol.
-	| { read kind: "::", read span: Span, read trivia: { Trivia } }
+	| { kind: "::", span: Span, trivia: { Trivia } }
 	--- The `->` symbol.
-	| { read kind: "->", read span: Span, read trivia: { Trivia } }
+	| { kind: "->", span: Span, trivia: { Trivia } }
 	--- The `=` symbol.
-	| { read kind: "=", read span: Span, read trivia: { Trivia } }
+	| { kind: "=", span: Span, trivia: { Trivia } }
 	--- The `,` symbol.
-	| { read kind: ",", read span: Span, read trivia: { Trivia } }
+	| { kind: ",", span: Span, trivia: { Trivia } }
 	--- The `;` symbol.
-	| { read kind: ";", read span: Span, read trivia: { Trivia } }
+	| { kind: ";", span: Span, trivia: { Trivia } }
 	--- The `.` symbol.
-	| { read kind: ".", read span: Span, read trivia: { Trivia } }
+	| { kind: ".", span: Span, trivia: { Trivia } }
 	--- The `(` symbol.
-	| { read kind: "(", read span: Span, read trivia: { Trivia } }
+	| { kind: "(", span: Span, trivia: { Trivia } }
 	--- The `)` symbol.
-	| { read kind: ")", read span: Span, read trivia: { Trivia } }
+	| { kind: ")", span: Span, trivia: { Trivia } }
 	--- The `{` symbol.
-	| { read kind: "{", read span: Span, read trivia: { Trivia } }
+	| { kind: "{", span: Span, trivia: { Trivia } }
 	--- The `}` symbol.
-	| { read kind: "}", read span: Span, read trivia: { Trivia } }
+	| { kind: "}", span: Span, trivia: { Trivia } }
 	--- The `[` symbol.
-	| { read kind: "[", read span: Span, read trivia: { Trivia } }
+	| { kind: "[", span: Span, trivia: { Trivia } }
 	--- The `]` symbol.
-	| { read kind: "]", read span: Span, read trivia: { Trivia } }
+	| { kind: "]", span: Span, trivia: { Trivia } }
 
 --- A token with a specific kind, such as `TokenKind<"+">` or `TokenKind<"string">`.
-export type TokenKind<Kind> = { read kind: Kind, read text: string, read span: Span, read trivia: { Trivia } } -- Token & { read kind: Kind }
+export type TokenKind<Kind> = { kind: Kind, text: string, span: Span, trivia: { Trivia } } -- Token & { kind: Kind }
 
 --- A pair of a node and optional separator, such as `node,` or `node`.
 --- 
 --- This is used within `Separated` to represent nodes like the arguments
 --- passed to a function, which would be `Separated<Expr>`.
-export type Pair<Node, Sep> = { read node: Node, read sep: (Sep & Token)? }
+export type Pair<Node, Sep> = { node: Node, sep: (Sep & Token)? }
 
 --- A list of nodes separated by tokens, such as `foo, bar, baz`.
 --- 
@@ -190,10 +190,10 @@ export type Separated<Node, Sep> = { Pair<Node, Sep> }
 --- stores the delimiters themselves.
 export type Delim<Open, Close> = {
 	--- The opening delimiter; the `(` in `(foo)`.
-	read open: Open & Token,
+	open: Open & Token,
 
 	--- The closing delimiter; the `)` in `(foo)`.
-	read close: Close & Token,
+	close: Close & Token,
 }
 
 --- A generic declaration without default types; the `<A, B, C...>` in
@@ -207,18 +207,18 @@ export type Delim<Open, Close> = {
 export type GenericDeclaration = {
 	--- The angles surrounding the generic declaration; the `<>` in
 	--- `<A, B, C...>`.
-	read angles: Delim<TokenKind<"<">, TokenKind<">">>,
+	angles: Delim<TokenKind<"<">, TokenKind<">">>,
 
 	--- The generic types; the `A, B,` in `A, B, C...`.
-	read names: Separated<TokenKind<"ident">, TokenKind<",">>,
+	names: Separated<TokenKind<"ident">, TokenKind<",">>,
 
 	--- The generic type packs; the `C...` in `A, B, C...`.
-	read packs: Separated<{
+	packs: Separated<{
 		--- The name; the `C` in `C...`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 
 		--- The dots; the `...` in `C...`.
-		read dots: TokenKind<"...">,
+		dots: TokenKind<"...">,
 	}, TokenKind<",">>,
 }
 
@@ -235,41 +235,41 @@ export type GenericDeclaration = {
 export type GenericDeclarationWithDefaults = {
 	--- The angles surrounding the generic declaration; the `<>` in
 	--- `<A = number, B... = (number, ...string)>`.
-	read angles: Delim<TokenKind<"<">, TokenKind<">">>,
+	angles: Delim<TokenKind<"<">, TokenKind<">">>,
 
 	--- The generic types; the `A = number,` in
 	--- `<A = number, B... = (number, ...string)>`.
-	read names: Separated<{
+	names: Separated<{
 		--- The name; the `A` in `A = number`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 
 		--- The default type; the `= number` in `A = number`.
-		read default: {
+		default: {
 			--- The equals sign; the `=` in `= number`.
-			read equals: TokenKind<"=">,
+			equals: TokenKind<"=">,
 
 			--- The type; the `number` in `= number`.
-			read type: Type,
+			type: Type,
 		}?,
 	}, TokenKind<",">>,
 
 	--- The generic type packs; the `B... = (number, ...string)` in
 	--- `<A = number, B... = (number, ...string)>`.
-	read packs: Separated<{
+	packs: Separated<{
 		--- The name; the `B` in `B... = (number, ...string)`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 
 		--- The dots; the first `...` in `B... = (number, ...string)`.
-		read dots: TokenKind<"...">,
+		dots: TokenKind<"...">,
 
 		--- The default type; the `= (number, ...string)` in
 		--- `B... = (number, ...string)`.
-		read default: {
+		default: {
 			--- The equals sign; the `=` in `= (number, ...string)`.
-			read equals: TokenKind<"=">,
+			equals: TokenKind<"=">,
 
 			--- The type; the `(number, ...string)` in `= (number, ...string)`.
-			read pack: TypePack,
+			pack: TypePack,
 		}?,
 	}, TokenKind<",">>,
 }
@@ -280,73 +280,73 @@ export type GenericDeclarationWithDefaults = {
 --- `foo<bar, baz...>` would have two `TypeArg`s: `bar` and `baz...`.
 export type TypeArg = Type | TypePack
 
---- A table type field with a name key, such as `read foo: bar` or
+--- A table type field with a name key, such as `foo: bar` or
 --- `bar: number`.
 export type TableTypeField_NameProp = {
-	read kind: "nameprop",
+	kind: "nameprop",
 
-	--- The access modifier; the `read` in `read foo: bar`.
+	--- The access modifier; the `read` in `foo: bar`.
 	--- 
 	--- This token should only have values of `read` or `write`.
-	read access: TokenKind<"ident">?,
+	access: TokenKind<"ident">?,
 
-	--- The name; the `foo` in `read foo: bar`.
-	read name: TokenKind<"ident">,
+	--- The name; the `foo` in `foo: bar`.
+	name: TokenKind<"ident">,
 
-	--- The colon; the `:` in `read foo: bar`.
-	read colon: TokenKind<":">,
+	--- The colon; the `:` in `foo: bar`.
+	colon: TokenKind<":">,
 
-	--- The type; the `bar` in `read foo: bar`.
-	read type: Type,
+	--- The type; the `bar` in `foo: bar`.
+	type: Type,
 }
 
---- A table type field with a string key, such as `read ["foo"]: bar` or
+--- A table type field with a string key, such as `["foo"]: bar` or
 --- `['bar']: number`.
 export type TableTypeField_StringProp = {
-	read kind: "stringprop",
+	kind: "stringprop",
 
-	--- The access modifier; the `read` in `read ["foo"]: bar`.
+	--- The access modifier; the `read` in `["foo"]: bar`.
 	--- 
 	--- This token should only have values of `read` or `write`.
-	read access: TokenKind<"ident">?,
+	access: TokenKind<"ident">?,
 
-	--- The brackets surrounding the key; the `[]` in `read ["foo"]: bar`.
-	read bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
+	--- The brackets surrounding the key; the `[]` in `["foo"]: bar`.
+	bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
 
-	--- The key; the `"foo"` in `read ["foo"]: bar`.
-	read key: TokenKind<"string">,
+	--- The key; the `"foo"` in `["foo"]: bar`.
+	key: TokenKind<"string">,
 
-	--- The colon; the `:` in `read ["foo"]: bar`.
-	read colon: TokenKind<":">,
+	--- The colon; the `:` in `["foo"]: bar`.
+	colon: TokenKind<":">,
 
-	--- The type; the `bar` in `read ["foo"]: bar`.
-	read type: Type,
+	--- The type; the `bar` in `["foo"]: bar`.
+	type: Type,
 }
 
---- A table type indexer field, such as `read [number]: string` or
+--- A table type indexer field, such as `[number]: string` or
 --- `[string]: number`.
 export type TableTypeField_Indexer = {
-	read kind: "indexer",
+	kind: "indexer",
 
-	--- The access modifier; the `read` in `read [number]: string`.
+	--- The access modifier; the `read` in `[number]: string`.
 	--- 
 	--- This token should only have values of `read` or `write`.
-	read access: TokenKind<"ident">?,
+	access: TokenKind<"ident">?,
 
-	--- The brackets surrounding the key; the `[]` in `read [number]: string`.
-	read bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
+	--- The brackets surrounding the key; the `[]` in `[number]: string`.
+	bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
 
-	--- The key; the `number` in `read [number]: string`.
-	read key: Type,
+	--- The key; the `number` in `[number]: string`.
+	key: Type,
 
-	--- The colon; the `:` in `read [number]: string`.
-	read colon: TokenKind<":">,
+	--- The colon; the `:` in `[number]: string`.
+	colon: TokenKind<":">,
 
-	--- The type; the `string` in `read [number]: string`.
-	read type: Type,
+	--- The type; the `string` in `[number]: string`.
+	type: Type,
 }
 
---- A table type field, such as `read foo: bar` or `["foo"]: bar` or
+--- A table type field, such as `foo: bar` or `["foo"]: bar` or
 --- `write [number]: string`.
 export type TableTypeField =
 	| TableTypeField_NameProp
@@ -355,170 +355,170 @@ export type TableTypeField =
 
 --- The literal type `nil`.
 export type Type_Nil = {
-	read kind: "nil",
+	kind: "nil",
 
 	--- The `nil` token.
-	read tok: TokenKind<"nil">,
+	tok: TokenKind<"nil">,
 }
 
 --- The literal types `true` and `false`.
 export type Type_Boolean = {
-	read kind: "boolean",
+	kind: "boolean",
 
 	--- The `true` or `false` token.
-	read tok: TokenKind<"true"> | TokenKind<"false">,
+	tok: TokenKind<"true"> | TokenKind<"false">,
 }
 
 --- A string literal type, such as `"foo"` or `'bar'` or `[[baz]]`.
 export type Type_String = {
-	read kind: "string",
+	kind: "string",
 
 	--- The string token.
-	read tok: TokenKind<"string">,
+	tok: TokenKind<"string">,
 }
 
 --- A reference type, such as `foo` or `foo<bar>` or `foo.bar<baz>`.
 export type Type_Reference = {
-	read kind: "reference",
+	kind: "reference",
 
 	--- The optional prefix; the `foo.` in `foo.bar<baz>`.
-	read prefix: {
+	prefix: {
 		--- The name; the `foo` in `foo.`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 
 		--- The dot; the `.` in `foo.`.
-		read dot: TokenKind<".">,
+		dot: TokenKind<".">,
 	}?,
 
 	--- The name; the `bar` in `foo.bar<baz>`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The optional generics; the `<baz>` in `foo.bar<baz>`.
-	read generics: {
+	generics: {
 		--- The angles surrounding the generic declaration; the `<>` in
 		--- `<baz>`.
-		read angles: Delim<TokenKind<"<">, TokenKind<">">>,
+		angles: Delim<TokenKind<"<">, TokenKind<">">>,
 
 		--- The generic types; the `baz` in `<baz>`.
-		read types: Separated<TypeArg, TokenKind<",">>,
+		types: Separated<TypeArg, TokenKind<",">>,
 	}?,
 }
 
 --- A typeof type, such as `typeof(foo)` or `typeof(10)`.
 export type Type_Typeof = {
-	read kind: "typeof",
+	kind: "typeof",
 
 	--- The `typeof` token.
-	read typeof_tok: TokenKind<"ident">,
+	typeof_tok: TokenKind<"ident">,
 
 	--- The parentheses surrounding the expr; the `()` in `typeof(foo)`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The expr; the `foo` in `typeof(foo)`.
-	read expr: Expr,
+	expr: Expr,
 }
 
 --- An array type, such as `{ foo }` or `{ number }`.
 export type Type_Array = {
-	read kind: "array",
+	kind: "array",
 
 	--- The braces surrounding the type; the `{}` in `{ number }`.
-	read braces: Delim<TokenKind<"{">, TokenKind<"}">>,
+	braces: Delim<TokenKind<"{">, TokenKind<"}">>,
 
 	--- The type; the `number` in `{ number }`.
-	read type: Type,
+	type: Type,
 }
 
 --- A table type, such as `{ foo: bar, ["baz"]: number, [number]: string }`.
 export type Type_Table = {
-	read kind: "table",
+	kind: "table",
 
 	--- The braces surrounding the type; the `{}` in `{ foo: bar }`.
-	read braces: Delim<TokenKind<"{">, TokenKind<"}">>,
+	braces: Delim<TokenKind<"{">, TokenKind<"}">>,
 
 	--- The fields; the `foo: bar` in `{ foo: bar }`.
-	read fields: Separated<TableTypeField, TokenKind<","> | TokenKind<";">>,
+	fields: Separated<TableTypeField, TokenKind<","> | TokenKind<";">>,
 }
 
 --- A function type, such as `<T>(foo: T, ...bar) -> baz`.
 export type Type_Function = {
-	read kind: "function",
+	kind: "function",
 
 	--- The optional generic declaration; the `<T>` in
 	--- `<T>(foo: T, ...bar) -> baz`.
-	read generics: GenericDeclaration?,
+	generics: GenericDeclaration?,
 
 	--- The parentheses surrounding the arguments; the `()` in
 	--- `<T>(foo: T, ...bar) -> baz`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The parameters; the `foo: T,` in `<T>(foo: T, ...bar) -> baz`.
-	read params: Separated<{
+	params: Separated<{
 		--- The optional name of the parameter; the `foo:` in `foo: T`.
-		read name: {
+		name: {
 			--- The name; the `foo` in `foo:`.
-			read name: TokenKind<"ident">,
+			name: TokenKind<"ident">,
 
 			--- The colon; the `:` in `foo:`.
-			read colon: TokenKind<":">,
+			colon: TokenKind<":">,
 		}?,
 
 		--- The type of the parameter; the `T` in `foo: T`.
-		read type: Type,
+		type: Type,
 	}, TokenKind<",">>,
 
 	--- The optional varargs; the `...bar` in `<T>(foo: T, ...bar) -> baz`.
-	read varargs: TailType?,
+	varargs: TailType?,
 
 	--- The arrow; the `->` in `<T>(foo: T, ...bar) -> baz`.
-	read arrow: TokenKind<"->">,
+	arrow: TokenKind<"->">,
 
 	--- The return type; the `baz` in `<T>(foo: T, ...bar) -> baz`.
-	read ret: ReturnType,
+	ret: ReturnType,
 }
 
 --- A parenthesized type, such as `(foo)` or `(bar)`.
 export type Type_Paren = {
-	read kind: "paren",
+	kind: "paren",
 
 	--- The parentheses surrounding the type; the `()` in `(foo)`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The type; the `foo` in `(foo)`.
-	read type: Type,
+	type: Type,
 }
 
 --- An optional type, such as `foo?` or `bar?`.
 export type Type_Optional = {
-	read kind: "optional",
+	kind: "optional",
 
 	--- The type; the `foo` in `foo?`.
-	read type: Type,
+	type: Type,
 
 	--- The question mark; the `?` in `foo?`.
-	read question: TokenKind<"?">,
+	question: TokenKind<"?">,
 }
 
 --- A union type, such as `| foo | bar` or `foo | bar`.
 export type Type_Union = {
-	read kind: "union",
+	kind: "union",
 
 	--- The optional leading pipe; the `|` in `| foo | bar`.
-	read leading: TokenKind<"|">?,
+	leading: TokenKind<"|">?,
 
 	--- The types; the `foo | bar` in `| foo | bar`.
-	read types: Separated<Type, TokenKind<"|">>,
+	types: Separated<Type, TokenKind<"|">>,
 }
 
 --- An intersection type, such as `& foo & bar` or `foo & bar`.
 export type Type_Intersection = {
-	read kind: "intersection",
+	kind: "intersection",
 
 	--- The optional leading ampersand; the `&` in `& foo & bar`.
-	read leading: TokenKind<"&">?,
+	leading: TokenKind<"&">?,
 
 	--- The types; the `foo & bar` in `& foo & bar`.
-	read types: Separated<Type, TokenKind<"&">>,
+	types: Separated<Type, TokenKind<"&">>,
 }
 
 --- A type, such as `number` or `foo` or `{}`.
@@ -541,39 +541,39 @@ export type Type =
 
 --- A variadic type pack, such as `...foo` or `...number`.
 export type VariadicTypePack = {
-	read kind: "variadic",
+	kind: "variadic",
 
 	--- The dots; the `...` in `...foo`.
-	read dots: TokenKind<"...">,
+	dots: TokenKind<"...">,
 
 	--- The type; the `foo` in `...foo`.
-	read type: Type,
+	type: Type,
 }
 
 --- A generic type pack, such as `foo...` or `T...`.
 export type GenericTypePack = {
-	read kind: "generic",
+	kind: "generic",
 
 	--- The name; the `foo` in `foo...`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The dots; the `...` in `foo...`.
-	read dots: TokenKind<"...">,
+	dots: TokenKind<"...">,
 }
 
 --- A type list, such as `(foo, bar, baz...)` or `(number...)`.
 export type TypeList = {
-	read kind: "list",
+	kind: "list",
 
 	--- The parentheses surrounding the type pack; the `()` in
 	--- `(foo, bar, baz...)`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The types; the `foo, bar,` in `(foo, bar, baz...)`.
-	read types: Separated<Type, TokenKind<",">>,
+	types: Separated<Type, TokenKind<",">>,
 
 	--- The optional tail type pack; the `baz...` in `(foo, bar, baz...)`.
-	read tail: TailType?,
+	tail: TailType?,
 }
 
 --- A tail type in a type pack, such as `...foo` or `bar...`.
@@ -594,41 +594,41 @@ export type ReturnType = Type | TypePack
 --- declarations.
 export type Binding = {
 	--- The name; the `foo` in `foo: bar`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The optional type; the `: bar` in `foo: bar`.
-	read type: {
+	type: {
 		--- The colon; the `:` in `: bar`.
-		read colon: TokenKind<":">,
+		colon: TokenKind<":">,
 
 		--- The type; the `bar` in `: bar`.
-		read type: Type,
+		type: Type,
 	}?,
 }
 
 --- An interpolated string with no exprs, such as `'simple'`.
 export type IString_Simple = {
-	read kind: "simple",
+	kind: "simple",
 
 	--- The string token.
-	read tok: TokenKind<"istring_simple">,
+	tok: TokenKind<"istring_simple">,
 }
 
 --- An interpolated string with exprs, such as `'foo {1} bar {2} baz'` or
 --- `'hello {"world"}'`.
 export type IString_Complex = {
-	read kind: "complex",
+	kind: "complex",
 
 	--- The first segment; the `'foo {'` in `'foo {1} bar {2} baz'`.
-	read first: TokenKind<"istring_first">,
+	first: TokenKind<"istring_first">,
 
 	--- The middle segments; the `1} bar {2` in `'foo {1} bar {2} baz'`.
 	--- 
 	--- This needs better documentation. Someone please remind me to do this.
-	read middle: Separated<Expr, TokenKind<"istring_middle">>,
+	middle: Separated<Expr, TokenKind<"istring_middle">>,
 
 	--- The last segment; the `} baz'` in `'foo {1} bar {2} baz'`.
-	read last: TokenKind<"istring_last">,
+	last: TokenKind<"istring_last">,
 }
 
 --- An interpolated string, such as `'simple'` or `'foo {1} bar {2} baz'` or
@@ -638,13 +638,13 @@ export type IString = IString_Simple | IString_Complex
 --- A branch of an if-else expr, such as `foo then bar`.
 export type IfElseExprBranch = {
 	--- The condition; the `foo` in `foo then bar`.
-	read condition: Expr,
+	condition: Expr,
 
 	--- The `then` token; the `then` in `foo then bar`.
-	read then_tok: TokenKind<"then">,
+	then_tok: TokenKind<"then">,
 
 	--- The body; the `bar` in `foo then bar`.
-	read body: Expr,
+	body: Expr,
 }
 
 --- An unary operator: `+`, `-`, `not`, or `#`.
@@ -676,144 +676,144 @@ export type BinaryOperator =
 
 --- The literal expr `nil`.
 export type Expr_Nil = {
-	read kind: "nil",
+	kind: "nil",
 
 	--- The `nil` token.
-	read tok: TokenKind<"nil">,
+	tok: TokenKind<"nil">,
 }
 
 --- The literal expr `true` and `false`.
 export type Expr_Boolean = {
-	read kind: "boolean",
+	kind: "boolean",
 
 	--- The `true` or `false` token.
-	read tok: TokenKind<"true"> | TokenKind<"false">,
+	tok: TokenKind<"true"> | TokenKind<"false">,
 }
 
 --- A number literal expr, such as `123` or `0xABCD`.
 export type Expr_Number = {
-	read kind: "number",
+	kind: "number",
 
 	--- The number token.
-	read tok: TokenKind<"number">,
+	tok: TokenKind<"number">,
 }
 
 --- A string literal expr, such as `"foo"` or `'bar'` or `[[baz]]`.
 export type Expr_String = {
-	read kind: "string",
+	kind: "string",
 
 	--- The string token.
-	read tok: TokenKind<"string">,
+	tok: TokenKind<"string">,
 }
 
 --- The literal expr `...`.
 export type Expr_Varargs = {
-	read kind: "varargs",
+	kind: "varargs",
 
 	--- The `...` token.
-	read tok: TokenKind<"...">,
+	tok: TokenKind<"...">,
 }
 
 --- An interpolated string expr, such as `'simple'` or
 --- `'foo {1} bar {2} baz'` or `'hello {"world"}'`.
 export type Expr_IString = {
-	read kind: "istring",
+	kind: "istring",
 
 	--- The interpolated string; the `'simple'` in `'simple'`.
-	read istring: IString,
+	istring: IString,
 }
 
 --- A table literal expr, such as `{ foo = bar }` or `{ 1, 2, 3 }`.
 export type Expr_Table = {
-	read kind: "table",
+	kind: "table",
 
 	--- The table literal.
-	read table: Table,
+	table: Table,
 }
 
 --- An anonymous function expr, such as
 --- `@native function(foo, bar) return foo + bar end` or `function() end`.
 export type Expr_Function = {
-	read kind: "function",
+	kind: "function",
 	
 	--- The function attributes; the `@native` in
 	--- `@native function(foo, bar) return foo + bar end`.
-	read attributes: { TokenKind<"attribute"> },
+	attributes: { TokenKind<"attribute"> },
 
 	--- The `function` token.
-	read function_tok: TokenKind<"function">,
+	function_tok: TokenKind<"function">,
 	
 	--- The function body; the `(foo, bar) return foo + bar end` in
 	--- `@native function(foo, bar) return foo + bar end`.
-	read body: FunctionBody,
+	body: FunctionBody,
 }
 
 --- An if-else expr, such as `if foo then bar elseif baz then qux else quux`.
 export type Expr_IfElse = {
-	read kind: "ifelse",
+	kind: "ifelse",
 
 	--- The `if` token; the `if` in
 	--- `if foo then bar elseif baz then qux else quux`.
-	read if_tok: TokenKind<"if">,
+	if_tok: TokenKind<"if">,
 
 	--- The branches; the `foo then bar elseif baz then qux` in
 	--- `if foo then bar elseif baz then qux else quux`.
-	read branches: Separated<IfElseExprBranch, TokenKind<"elseif">>,
+	branches: Separated<IfElseExprBranch, TokenKind<"elseif">>,
 
 	--- The `else` token; the `else` in
 	--- `if foo then bar elseif baz then qux else quux`.
-	read else_tok: TokenKind<"else">,
+	else_tok: TokenKind<"else">,
 
 	--- The else body; the `quux` in
 	--- `if foo then bar elseif baz then qux else quux`.
-	read else_body: Expr,
+	else_body: Expr,
 }
 
 --- A var expr, such as `foo.bar[baz]()` or `foo`.
 export type Expr_Var = {
-	read kind: "var",
+	kind: "var",
 
 	--- The var.
-	read var: Var,
+	var: Var,
 }
 
 --- A type assertion expr, such as `foo :: bar` or `{} :: { number }`.
 export type Expr_Assertion = {
-	read kind: "assertion",
+	kind: "assertion",
 
 	--- The expr; the `foo` in `foo :: bar`.
-	read expr: Expr,
+	expr: Expr,
 
 	--- The double colon; the `::` in `foo :: bar`.
-	read colon: TokenKind<"::">,
+	colon: TokenKind<"::">,
 
 	--- The type; the `bar` in `foo :: bar`.
-	read type: Type,
+	type: Type,
 }
 
 --- An unary expr, such as `-foo` or `not bar`.
 export type Expr_Unary = {
-	read kind: "unary",
+	kind: "unary",
 
 	--- The operator; the `-` in `-foo`.
-	read operator: UnaryOperator,
+	operator: UnaryOperator,
 
 	--- The expr; the `foo` in `-foo`.
-	read expr: Expr,
+	expr: Expr,
 }
 
 --- A binary expr, such as `foo + bar` or `baz and qux`.
 export type Expr_Binary = {
-	read kind: "binary",
+	kind: "binary",
 
 	--- The left expr; the `foo` in `foo + bar`.
-	read left: Expr,
+	left: Expr,
 
 	--- The operator; the `+` in `foo + bar`.
-	read operator: BinaryOperator,
+	operator: BinaryOperator,
 
 	--- The right expr; the `bar` in `foo + bar`.
-	read right: Expr,
+	right: Expr,
 }
 
 --- An expression, such as `nil` or `foo` or `foo + bar`.
@@ -837,29 +837,29 @@ export type Expr =
 
 --- Pack argument to a call, such as `(foo, bar)` or `()`.
 export type FunctionArg_Pack = {
-	read kind: "pack",
+	kind: "pack",
 
 	--- The parens surrounding the pack; the `()` in `()`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The exprs; the `foo, bar` in `(foo, bar)`.
-	read exprs: Separated<Expr, TokenKind<",">>,
+	exprs: Separated<Expr, TokenKind<",">>,
 }
 
 --- Table argument to a call, such as `{ foo = bar }` or `{}`.
 export type FunctionArg_Table = {
-	read kind: "table",
+	kind: "table",
 
 	--- The table literal.
-	read table: Table,
+	table: Table,
 }
 
 --- String argument to a call, such as `"foo"` or `'bar'`.
 export type FunctionArg_String = {
-	read kind: "string",
+	kind: "string",
 
 	--- The string token.
-	read tok: TokenKind<"string">,
+	tok: TokenKind<"string">,
 }
 
 --- An argument to a call, such as `(foo, bar)` or `()` or `"baz"`.
@@ -870,21 +870,21 @@ export type FunctionArg =
 
 --- A name as a variable, such as `foo`.
 export type VarRoot_Name = {
-	read kind: "name",
+	kind: "name",
 
 	--- The name token.
-	read tok: TokenKind<"ident">,
+	tok: TokenKind<"ident">,
 }
 
 --- A parenthesized expr, such as `(foo)` or `(1 + 1)`.
 export type VarRoot_Paren = {
-	read kind: "paren",
+	kind: "paren",
 
 	--- The parentheses surrounding the expr; the `()` in `(foo)`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The expr; the `foo` in `(foo)`.
-	read expr: Expr,
+	expr: Expr,
 }
 
 --- The root of a variable, such as `foo` or `(foo)`.
@@ -892,41 +892,41 @@ export type VarRoot = VarRoot_Name | VarRoot_Paren
 
 --- A named index, such as `root.foo` or `root.bar`.
 export type VarSuffix_NameIndex = {
-	read kind: "nameindex",
+	kind: "nameindex",
 
 	--- The dot; the `.` in `.foo`.
-	read dot: TokenKind<".">,
+	dot: TokenKind<".">,
 
 	--- The name; the `foo` in `.foo`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 }
 
 --- An expr index, such as `root[foo]` or `root[1 + 1]`.
 export type VarSuffix_ExprIndex = {
-	read kind: "exprindex",
+	kind: "exprindex",
 
 	--- The brackets surrounding the expr; the `[]` in `[foo]`.
-	read bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
+	bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
 
 	--- The expr; the `foo` in `[foo]`.
-	read expr: Expr,
+	expr: Expr,
 }
 
 --- A call, such as `root:method(foo)` or `root()`.
 export type VarSuffix_Call = {
-	read kind: "call",
+	kind: "call",
 
 	--- The optional method; the `:method` in `root:method(foo)`.
-	read method: {
+	method: {
 		--- The colon; the `:` in `:method`.
-		read colon: TokenKind<":">,
+		colon: TokenKind<":">,
 
 		--- The name; the `method` in `:method`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 	}?,
 	
 	--- The argument; the `(foo)` in `root:method(foo)`.
-	read arg: FunctionArg,
+	arg: FunctionArg,
 }
 
 --- A suffix of a variable, such as `.foo` or `[bar]` or `()`.
@@ -944,49 +944,49 @@ export type VarSuffix =
 --- As an example:
 export type Var = {
 	--- The root of the variable; the `foo` in `foo.bar()[baz]`.
-	read root: VarRoot,
+	root: VarRoot,
 
 	--- The suffixes of the variable; the `.bar()[baz]` in `foo.bar()[baz]`.
-	read suffixes: { VarSuffix },
+	suffixes: { VarSuffix },
 }
 
 --- A table field with a name key, such as `foo = bar` or `bar = 1`.
 export type TableField_NameKey = {
-	read kind: "namekey",
+	kind: "namekey",
 
 	--- The name; the `foo` in `foo = bar`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The equals sign; the `=` in `foo = bar`.
-	read equals: TokenKind<"=">,
+	equals: TokenKind<"=">,
 
 	--- The value; the `bar` in `foo = bar`.
-	read value: Expr,
+	value: Expr,
 }
 
 --- A table field with an expr key, such as `[foo] = bar` or `[1] = 2`.
 export type TableField_ExprKey = {
-	read kind: "exprkey",
+	kind: "exprkey",
 
 	--- The brackets surrounding the key; the `[]` in `[foo] = bar`.
-	read bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
+	bracks: Delim<TokenKind<"[">, TokenKind<"]">>,
 
 	--- The key; the `foo` in `[foo] = bar`.
-	read key: Expr,
+	key: Expr,
 
 	--- The equals sign; the `=` in `[foo] = bar`.
-	read equals: TokenKind<"=">,
+	equals: TokenKind<"=">,
 
 	--- The value; the `bar` in `[foo] = bar`.
-	read value: Expr,
+	value: Expr,
 }
 
 --- A table field with no key, such as `foo` or `1`.
 export type TableField_NoKey = {
-	read kind: "nokey",
+	kind: "nokey",
 
 	--- The value; the `foo` in `foo`.
-	read value: Expr,
+	value: Expr,
 }
 
 --- A table field, such as `foo = bar` or `[baz] = qux` or `quux`.
@@ -998,10 +998,10 @@ export type TableField =
 --- A table literal, such as `{ foo = bar, [baz] = qux, quux }`.
 export type Table = {
 	--- The braces surrounding the table; the `{}` in `{ foo = bar }`.
-	read braces: Delim<TokenKind<"{">, TokenKind<"}">>,
+	braces: Delim<TokenKind<"{">, TokenKind<"}">>,
 
 	--- The fields; the `foo = bar` in `{ foo = bar }`.
-	read fields: Separated<TableField, TokenKind<","> | TokenKind<";">>,
+	fields: Separated<TableField, TokenKind<","> | TokenKind<";">>,
 }
 
 --- A function body, such as `<T>(foo: T, ...: bar): baz return 10 end`.
@@ -1011,61 +1011,61 @@ export type Table = {
 export type FunctionBody = {
 	--- The optional generic declaration; the `<T>` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read generics: GenericDeclaration?,
+	generics: GenericDeclaration?,
 
 	--- The parentheses surrounding the parameters; the `()` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read parens: Delim<TokenKind<"(">, TokenKind<")">>,
+	parens: Delim<TokenKind<"(">, TokenKind<")">>,
 
 	--- The parameters; the `foo: T,` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read params: Separated<Binding, TokenKind<",">>,
+	params: Separated<Binding, TokenKind<",">>,
 
 	--- The optional varargs; the `...: bar` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read varargs: {
+	varargs: {
 		--- The dots; the `...` in `...: bar`.
-		read dots: TokenKind<"...">,
+		dots: TokenKind<"...">,
 
 		--- The optional type; the `: bar` in `...: bar`.
-		read type: {
+		type: {
 			--- The colon; the `:` in `: bar`.
-			read colon: TokenKind<":">,
+			colon: TokenKind<":">,
 
 			--- The type; the `bar` in `: bar`.
-			read type: Type | GenericTypePack,
+			type: Type | GenericTypePack,
 		}?,
 	}?,
 
 	--- The return type; the `: baz` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read ret: {
+	ret: {
 		--- The colon; the `:` in `: baz`.
-		read colon: TokenKind<":">,
+		colon: TokenKind<":">,
 
 		--- The type; the `baz` in `: baz`.
-		read type: ReturnType,
+		type: ReturnType,
 	}?,
 
 	--- The block; the `return 10` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read block: Block,
+	block: Block,
 
 	--- The `end` token; the `end` in
 	--- `<T>(foo: T, ...: bar): baz return 10 end`.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A branch in an if stat, such as `foo then bar()`
 export type IfStatBranch = {
 	--- The condition; the `foo` in `foo then bar()`.
-	read condition: Expr,
+	condition: Expr,
 
 	--- The `then` token.
-	read then_tok: TokenKind<"then">,
+	then_tok: TokenKind<"then">,
 
 	--- The block; the `bar()` in `foo then bar()`.
-	read block: Block,
+	block: Block,
 }
 
 --- A compound operator: `+=`, `-=`, `*=`, `/=`, `//=`, `%=`, `*=`, `or `..=`.
@@ -1081,298 +1081,298 @@ export type CompoundOperator =
 
 --- An assignment stat, such as `foo, bar = baz, qux` or `foo = bar`.
 export type Stat_Assign = {
-	read kind: "assign",
+	kind: "assign",
 
 	--- The left side of the assignment; the `foo, bar` in
 	--- `foo, bar = baz, qux`.
-	read left: Separated<Var, TokenKind<",">>,
+	left: Separated<Var, TokenKind<",">>,
 
 	--- The equals sign; the `=` in `foo, bar = baz, qux`.
-	read equals: TokenKind<"=">,
+	equals: TokenKind<"=">,
 
 	--- The right side of the assignment; the `baz, qux` in
 	--- `foo, bar = baz, qux`.
-	read right: Separated<Expr, TokenKind<",">>,
+	right: Separated<Expr, TokenKind<",">>,
 }
 
 --- A compound assignment stat, such as `foo += bar`.
 export type Stat_CompoundAssign = {
-	read kind: "compoundassign",
+	kind: "compoundassign",
 
 	--- The left side of the assignment; the `foo` in `foo += bar`.
-	read left: Var,
+	left: Var,
 
 	--- The compound operator; the `+=` in `foo += bar`.
-	read operator: CompoundOperator,
+	operator: CompoundOperator,
 
 	--- The right side of the assignment; the `bar` in `foo += bar`.
-	read right: Expr,
+	right: Expr,
 }
 
 --- A function call stat, such as `foo.bar()` or `baz()`.
 export type Stat_Call = {
-	read kind: "call",
+	kind: "call",
 
 	--- A var ending with a call suffix.
 	--- 
 	--- This call not ending with a call suffix will result in a syntax error
 	--- when emitted.
-	read call: Var,
+	call: Var,
 }
 
 --- A do stat, such as `do foo() end`.
 export type Stat_Do = {
-	read kind: "do",
+	kind: "do",
 	
 	--- The `do` token.
-	read do_tok: TokenKind<"do">,
+	do_tok: TokenKind<"do">,
 
 	--- The block within the do; the `foo()` in `do foo() end`.
-	read block: Block,
+	block: Block,
 
 	--- The `end` token.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A while stat, such as `while foo do bar() end`.
 export type Stat_While = {
-	read kind: "while",
+	kind: "while",
 
 	--- The `while` token.
-	read while_tok: TokenKind<"while">,
+	while_tok: TokenKind<"while">,
 
 	--- The condition; the `foo` in `while foo do bar() end`.
-	read condition: Expr,
+	condition: Expr,
 
 	--- The `do` token.
-	read do_tok: TokenKind<"do">,
+	do_tok: TokenKind<"do">,
 
 	--- The block; the `bar()` in `while foo do bar() end`.
-	read block: Block,
+	block: Block,
 
 	--- The `end` token.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A repeat stat, such as `repeat foo() until bar`.
 export type Stat_Repeat = {
-	read kind: "repeat",
+	kind: "repeat",
 
 	--- The `repeat` token.
-	read repeat_tok: TokenKind<"repeat">,
+	repeat_tok: TokenKind<"repeat">,
 	
 	--- The block; the `foo()` in `repeat foo() until bar`.
-	read block: Block,
+	block: Block,
 
 	--- The `until` token.
-	read until_tok: TokenKind<"until">,
+	until_tok: TokenKind<"until">,
 
 	--- The condition; the `bar` in `repeat foo() until bar`.
-	read condition: Expr,
+	condition: Expr,
 }
 
 --- An if stat, such as
 --- `if foo then bar() elseif baz then qux() else quux() end`.
 export type Stat_If = {
-	read kind: "if",
+	kind: "if",
 
 	--- The `if` token.
-	read if_tok: TokenKind<"if">,
+	if_tok: TokenKind<"if">,
 
 	--- The branches; the `foo then bar() elseif baz then qux()` in
 	--- `if foo then bar() elseif baz then qux() else quux() end`.
-	read branches: Separated<IfStatBranch, TokenKind<"elseif">>,
+	branches: Separated<IfStatBranch, TokenKind<"elseif">>,
 
 	--- The optional else branch; the `else quux()` in
 	--- `if foo then bar() elseif baz then qux() else quux() end`.
-	read else_branch: {
+	else_branch: {
 		--- The `else` token.
-		read else_tok: TokenKind<"else">,
+		else_tok: TokenKind<"else">,
 
 		--- The else branch block; the `quux()` in `else quux()`.
-		read block: Block,
+		block: Block,
 	}?,
 
 	--- The `end` token.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A numeric for loop stat, such as `for foo = 1, 2, 3 do bar() end`.
 export type Stat_NumericFor = {
-	read kind: "numericfor",
+	kind: "numericfor",
 
 	--- The `for` token.
-	read for_tok: TokenKind<"for">,
+	for_tok: TokenKind<"for">,
 
 	--- The binding; the `foo` in `for foo = 1, 2, 3  do bar() end`.
-	read binding: Binding,
+	binding: Binding,
 
 	--- The equals token; the `=` in `for foo = 1, 2, 3 do bar() end`.
-	read equals: TokenKind<"=">,
+	equals: TokenKind<"=">,
 
 	--- The start expr; the `1` in `for foo = 1, 2, 3 do bar() end`.
-	read start_expr: Expr,
+	start_expr: Expr,
 
 	--- The comma between the start and end; the first comma in
 	--- `for foo = 1, 2, 3 do bar() end`.
-	read comma: TokenKind<",">,
+	comma: TokenKind<",">,
 
 	--- The end expr; the `2` in `for foo = 1, 2, 3 do bar() end`.
-	read end_expr: Expr,
+	end_expr: Expr,
 
 	--- The optional step; the `, 3` in `for foo = 1, 2, 3 do bar() end`.
-	read step: {
+	step: {
 		--- The comma between the end and step; the comma in `, 3` and the
 		--- second comma in `for foo = 1, 2, 3 do bar() end`.
-		read comma: TokenKind<",">,
+		comma: TokenKind<",">,
 
 		--- The step expr; the `3` in `, 3` and the `3` in
 		--- `for foo = 1, 2, 3 do bar() end`.
-		read expr: Expr,
+		expr: Expr,
 	}?,
 
 	--- The `do` token.
-	read do_tok: TokenKind<"do">,
+	do_tok: TokenKind<"do">,
 
 	--- The block; the `bar()` in `for foo = 1, 2, 3 do bar() end`.
-	read block: Block,
+	block: Block,
 
 	--- The `end` token.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A for-in loop stat, such as `for foo: bar, baz in qux, quux do quuz() end`.
 export type Stat_ForIn = {
-	read kind: "forin",
+	kind: "forin",
 
 	--- The `for` token.
-	read for_tok: TokenKind<"for">,
+	for_tok: TokenKind<"for">,
 
 	--- The bindings; the `foo: bar, baz` in
 	--- `for foo: bar, baz in qux, quux do quuz() end`.
-	read bindings: Separated<Binding, TokenKind<",">>,
+	bindings: Separated<Binding, TokenKind<",">>,
 
 	--- The `in` token.
-	read in_tok: TokenKind<"in">,
+	in_tok: TokenKind<"in">,
 
 	--- The exprs; the `qux, quux` in
 	--- `for foo: bar, baz in qux, quux do quuz() end`.
-	read exprs: Separated<Expr, TokenKind<",">>,
+	exprs: Separated<Expr, TokenKind<",">>,
 
 	--- The `do` token.
-	read do_tok: TokenKind<"do">,
+	do_tok: TokenKind<"do">,
 
 	--- The block; the `quuz()` in
 	--- `for foo: bar, baz in qux, quux do quuz() end`.
-	read block: Block,
+	block: Block,
 
 	--- The `end` token.
-	read end_tok: TokenKind<"end">,
+	end_tok: TokenKind<"end">,
 }
 
 --- A function declaration stat, such as
 --- `@native function foo.bar:baz() return 1 end`.
 export type Stat_Function = {
-	read kind: "function",
+	kind: "function",
 	
 	--- The attributes; the `@native` in
 	--- `@native function foo.bar:baz() return 1 end`.
-	read attributes: { TokenKind<"attribute"> },
+	attributes: { TokenKind<"attribute"> },
 
 	--- The `function` token.
-	read function_tok: TokenKind<"function">,
+	function_tok: TokenKind<"function">,
 
 	--- The name; the `foo.bar` in
 	--- `@native function foo.bar:baz() return 1 end`.
-	read names: Separated<TokenKind<"ident">, TokenKind<".">>,
+	names: Separated<TokenKind<"ident">, TokenKind<".">>,
 
 	--- The optional method; the `:baz` in
 	--- `@native function foo.bar:baz() return 1 end`.
-	read method: {
+	method: {
 		--- The colon; the `:` in `:baz`.
-		read colon: TokenKind<":">,
+		colon: TokenKind<":">,
 		
 		--- The method name; the `baz` in `:baz`.
-		read name: TokenKind<"ident">,
+		name: TokenKind<"ident">,
 	}?,
 
 	--- The function body; the `() return 1 end` in
 	--- `@native function foo.bar:baz() return 1 end`.
-	read body: FunctionBody,
+	body: FunctionBody,
 }
 
 --- A local function declaration stat, such as
 --- `@native local function foo() return 1 end`.
 export type Stat_LocalFunction = {
-	read kind: "localfunction",
+	kind: "localfunction",
 	
 	--- The attributes; the `@native` in
 	--- `@native local function foo() return 1 end`.
-	read attributes: { TokenKind<"attribute"> },
+	attributes: { TokenKind<"attribute"> },
 
 	--- The `local` token.
-	read local_tok: TokenKind<"local">,
+	local_tok: TokenKind<"local">,
 
 	--- The `function` token.
-	read function_tok: TokenKind<"function">,
+	function_tok: TokenKind<"function">,
 
 	--- The name; the `foo` in `@native local function foo() return 1 end`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The function body; the `() return 1 end` in
 	--- `@native local function foo() return 1 end`.
-	read body: FunctionBody,
+	body: FunctionBody,
 }
 
 --- A local variable stat, such as `local foo: bar, baz = qux, quux, quuz`.
 export type Stat_LocalVariable = {
-	read kind: "localvariable",
+	kind: "localvariable",
 
 	--- The `local` token.
-	read local_tok: TokenKind<"local">,
+	local_tok: TokenKind<"local">,
 
 	--- The bindings; the `foo: bar, baz` in
 	--- `local foo: bar, baz = qux, quux, quuz`.
-	read bindings: Separated<Binding, TokenKind<",">>,
+	bindings: Separated<Binding, TokenKind<",">>,
 
 	--- The optional values; the `= qux, quux, quuz` in
 	--- `local foo: bar, baz = qux, quux, quuz`.
-	read values: {
+	values: {
 		--- The equals; the `=` in `= qux, quux, quuz`.
-		read equals: TokenKind<"=">,
+		equals: TokenKind<"=">,
 
 		--- The exprs; the `qux, quux, quuz` in `= qux, quux, quuz`.
-		read exprs: Separated<Expr, TokenKind<",">>,
+		exprs: Separated<Expr, TokenKind<",">>,
 	}?,
 }
 
 --- A type declaration stat, such as `export type foo<bar> = baz`.
 export type Stat_Type = {
-	read kind: "type",
+	kind: "type",
 
 	--- The optional `export` token.
 	--- 
 	--- Note that the value of this identifier must be `export` otherwise this
 	--- will result in a syntax error.
-	read export_tok: TokenKind<"ident">?,
+	export_tok: TokenKind<"ident">?,
 
 	--- The `type` token.
 	---
 	--- Note that the value of this identifier must be `type` otherwise this
 	--- will result in a syntax error.
-	read type_tok: TokenKind<"ident">,
+	type_tok: TokenKind<"ident">,
 
 	--- The name of the type; the `foo` in `export type foo<bar> = baz`.
-	read name: TokenKind<"ident">,
+	name: TokenKind<"ident">,
 
 	--- The optional generic declarations; the `<bar>` in `export type foo<bar> = baz`.
-	read generics: GenericDeclarationWithDefaults?,
+	generics: GenericDeclarationWithDefaults?,
 
 	--- The equals token; the `=` in `export type foo<bar> = baz`.
-	read equals: TokenKind<"=">,
+	equals: TokenKind<"=">,
 
 	--- The type; the `baz` in `export type foo<bar> = baz`.
-	read type: Type,
+	type: Type,
 }
 
 --- A statement in a block, such as `foo()` or `local foo = bar` or `foo = bar`.
@@ -1393,32 +1393,32 @@ export type Stat =
 
 --- A return laststat, such as `return foo, bar, baz` or `return`.
 export type LastStat_Return = {
-	read kind: "return",
+	kind: "return",
 
 	--- The `return` token.
-	read return_tok: TokenKind<"return">,
+	return_tok: TokenKind<"return">,
 
 	--- The returned exprs; the `foo, bar, baz` in `return foo, bar, baz`.
-	read exprs: Separated<Expr, TokenKind<",">>,
+	exprs: Separated<Expr, TokenKind<",">>,
 }
 
 --- A `break` laststat.
 export type LastStat_Break = {
-	read kind: "break",
+	kind: "break",
 	
 	--- The `break` token.
-	read tok: TokenKind<"break">,
+	tok: TokenKind<"break">,
 }
 
 --- A `continue` laststat.
 export type LastStat_Continue = {
-	read kind: "continue",
+	kind: "continue",
 
 	--- The `continue` token.
 	--- 
 	--- Note that the value of this identifier must be `continue` otherwise this
 	--- will result in a syntax error.
-	read tok: TokenKind<"ident">,
+	tok: TokenKind<"ident">,
 }
 
 --- The last statement in a block, such as `return`, `break`, or `continue`.
@@ -1431,25 +1431,25 @@ export type LastStat =
 --- `foo(); bar(); return baz;`.
 export type Block = {
 	--- The stats, the `foo(); bar();` in `foo(); bar(); return baz;`.
-	read stats: Separated<Stat, TokenKind<";">>,
+	stats: Separated<Stat, TokenKind<";">>,
 
 	--- The optional laststat, the `return baz;` in `foo(); bar(); return baz;`.
-	read last_stat: {
+	last_stat: {
 		--- The laststat; the `return baz` in `return baz;`.
-		read stat: LastStat,
+		stat: LastStat,
 
 		--- The optional semicolon; the `;` in `return baz;`.
-		read semicolon: TokenKind<";">?,
+		semicolon: TokenKind<";">?,
 	}?,
 }
 
 --- A full CST with a block and eof.
 export type Cst = {
 	--- The block of stats.
-	read block: Block,
+	block: Block,
 
 	--- The eof token.
-	read eof: TokenKind<"eof">,
+	eof: TokenKind<"eof">,
 }
 
 return {}
