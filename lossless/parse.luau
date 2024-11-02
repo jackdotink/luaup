@@ -650,8 +650,8 @@ do
 		local open = expect("<")
 		local names: cst.Separated<cst.TokenKind<"ident">, cst.TokenKind<",">> = {}
 		local packs: cst.Separated<{
-			read name: cst.TokenKind<"ident">,
-			read dots: cst.TokenKind<"...">,
+			name: cst.TokenKind<"ident">,
+			dots: cst.TokenKind<"...">,
 		}, cst.TokenKind<",">> = {}
 
 		while true do
@@ -721,18 +721,18 @@ do
 	function parse_generic_declaration_with_defaults(): cst.GenericDeclarationWithDefaults
 		local open = expect("<")
 		local names: cst.Separated<{
-			read name: cst.TokenKind<"ident">,
-			read default: {
-				read equals: cst.TokenKind<"=">,
-				read type: cst.Type,
+			name: cst.TokenKind<"ident">,
+			default: {
+				equals: cst.TokenKind<"=">,
+				type: cst.Type,
 			}?,
 		}, cst.TokenKind<",">> = {}
 		local packs: cst.Separated<{
-			read name: cst.TokenKind<"ident">,
-			read dots: cst.TokenKind<"...">,
-			read default: {
-				read equals: cst.TokenKind<"=">,
-				read pack: cst.TypePack,
+			name: cst.TokenKind<"ident">,
+			dots: cst.TokenKind<"...">,
+			default: {
+				equals: cst.TokenKind<"=">,
+				pack: cst.TypePack,
 			}?,
 		}, cst.TokenKind<",">> = {}
 
@@ -742,8 +742,8 @@ do
 			else
 				local name = expect("ident")
 				local default: {
-					read equals: cst.TokenKind<"=">,
-					read type: cst.Type,
+					equals: cst.TokenKind<"=">,
+					type: cst.Type,
 				}? = nil
 				
 				if current_kind == "=" then
@@ -776,8 +776,8 @@ do
 			local name = expect("ident")
 			local dots = expect("...")
 			local default: {
-				read equals: cst.TokenKind<"=">,
-				read pack: cst.TypePack,
+				equals: cst.TokenKind<"=">,
+				pack: cst.TypePack,
 			}? = nil
 
 			if current_kind == "=" then
@@ -827,20 +827,20 @@ do
 	end
 
 	local function parse_function_type_params(): (cst.Separated<{
-		read name: {
-			read name: cst.TokenKind<"ident">,
-			read colon: cst.TokenKind<":">,
+		name: {
+			name: cst.TokenKind<"ident">,
+			colon: cst.TokenKind<":">,
 		}?,
 
-		read type: cst.Type,
+		type: cst.Type,
 	}, cst.TokenKind<",">>, cst.TailType?)
 		local params: cst.Separated<{
-			read name: {
-				read name: cst.TokenKind<"ident">,
-				read colon: cst.TokenKind<":">,
+			name: {
+				name: cst.TokenKind<"ident">,
+				colon: cst.TokenKind<":">,
 			}?,
 
-			read type: cst.Type,
+			type: cst.Type,
 		}, cst.TokenKind<",">> = {}
 
 		while true do
@@ -853,8 +853,8 @@ do
 			end
 
 			local name: {
-				read name: cst.TokenKind<"ident">,
-				read colon: cst.TokenKind<":">,
+				name: cst.TokenKind<"ident">,
+				colon: cst.TokenKind<":">,
 			}? = nil
 
 			if current_kind == "ident" and lookahead_kind == ":" then
@@ -886,7 +886,7 @@ do
 		if current_kind == "nil" then
 			return { kind = "nil", tok = consume() :: cst.TokenKind<"nil"> }
 		elseif current_kind == "true" or current_kind == "false" then
-			return { kind = "boolean", tok = consume() :: cst.TokenKind<"true"> }
+			return { kind = "boolean", tok = consume() :: cst.TokenKind<"true"> | cst.TokenKind<"false"> }
 		elseif current_kind == "string" then
 			return { kind = "string", tok = consume() :: cst.TokenKind<"string"> }
 		elseif current_kind == "ident" then
@@ -905,8 +905,8 @@ do
 			else
 				local name = consume() :: cst.TokenKind<"ident">
 				local prefix: {
-					read name: cst.TokenKind<"ident">,
-					read dot: cst.TokenKind<".">,
+					name: cst.TokenKind<"ident">,
+					dot: cst.TokenKind<".">,
 				}? = nil
 
 				if current_kind == "." then
@@ -919,7 +919,7 @@ do
 
 				if current_kind == "<" then
 					local open = consume() :: cst.TokenKind<"<">
-					local generics: cst.Separated<cst.TypeArg, cst.TokenKind<",">> = {}
+					local types: cst.Separated<cst.TypeArg, cst.TokenKind<",">> = {}
 
 					if current_kind == ">" then
 						return {
@@ -928,9 +928,9 @@ do
 							name = name,
 							generics = {
 								angles = { open = open, close = consume() :: cst.TokenKind<">"> },
-								types = generics
+								types = types,
 							},
-						}
+						} :: cst.Type_Reference
 					else
 						while true do
 							local generic: cst.TypeArg
@@ -953,12 +953,12 @@ do
 							end
 
 							if current_kind == "," then
-								table.insert(generics, {
+								table.insert(types, {
 									node = generic,
 									sep = consume() :: cst.TokenKind<",">,
 								})
 							else
-								table.insert(generics, {
+								table.insert(types, {
 									node = generic,
 									sep = nil,
 								})
@@ -969,9 +969,9 @@ do
 									name = name,
 									generics = {
 										angles = { open = open, close = expect(">") },
-										types = generics
+										types = types,
 									},
-								}
+								} :: cst.Type_Reference
 							end
 						end
 					end
@@ -1097,12 +1097,12 @@ do
 
 			local open = expect("(")
 			local params: cst.Separated<{
-				read name: {
-					read name: cst.TokenKind<"ident">,
-					read colon: cst.TokenKind<":">,
+				name: {
+					name: cst.TokenKind<"ident">,
+					colon: cst.TokenKind<":">,
 				}?,
 
-				read type: cst.Type,
+				type: cst.Type,
 			}, cst.TokenKind<",">>, tail: cst.TailType?
 
 			if current_kind ~= ")" then
@@ -1229,13 +1229,13 @@ do
 				kind = "union",
 				leading = leading :: cst.TokenKind<"|">,
 				types = types :: cst.Separated<cst.Type, cst.TokenKind<"|">>,
-			}
+			} :: cst.Type_Union
 		elseif is_intersection then
 			return {
 				kind = "intersection",
 				leading = leading :: cst.TokenKind<"&">,
 				types = types :: cst.Separated<cst.Type, cst.TokenKind<"&">>,
-			}
+			} :: cst.Type_Intersection
 		else
 			error("internal: reached end of parse_type_suffix without is_union or is_intersection set")
 		end
@@ -1265,12 +1265,12 @@ do
 
 		local open = consume() :: cst.TokenKind<"(">
 		local params: cst.Separated<{
-			read name: {
-				read name: cst.TokenKind<"ident">,
-				read colon: cst.TokenKind<":">,
+			name: {
+				name: cst.TokenKind<"ident">,
+				colon: cst.TokenKind<":">,
 			}?,
 
-			read type: cst.Type,
+			type: cst.Type,
 		}, cst.TokenKind<",">>, tail: cst.TailType?
 
 		if current_kind ~= ")" then
@@ -1326,8 +1326,8 @@ do
 				params = params,
 				varargs = tail,
 				arrow = arrow,
-				ret = ret,
-			}
+				ret = ret :: any, -- TODO: Luau bug
+			} :: cst.Type_Function
 		end
 	end
 end
@@ -1339,9 +1339,9 @@ local function parse_binding(): cst.Binding
 		local colon = consume() :: cst.TokenKind<":">
 		local type = parse_type()
 		
-		return { name = name, type = { colon = colon, type = type } }
+		return { name = name, type = { colon = colon, type = type } } :: cst.Binding
 	else
-		return { name = name, type = nil }
+		return { name = name, type = nil } :: cst.Binding
 	end
 end
 
@@ -1355,11 +1355,11 @@ local function parse_function_body(): cst.FunctionBody
 	local open = expect("(")
 	local params: cst.Separated<cst.Binding, cst.TokenKind<",">> = {}
 	local varargs: {
-		read dots: cst.TokenKind<"...">,
+		dots: cst.TokenKind<"...">,
 		
-		read type: {
-			read colon: cst.TokenKind<":">,
-			read type: cst.Type | cst.GenericTypePack,
+		type: {
+			colon: cst.TokenKind<":">,
+			type: cst.Type | cst.GenericTypePack,
 		}?,
 	}? = nil
 
@@ -1398,9 +1398,15 @@ local function parse_function_body(): cst.FunctionBody
 						type = parse_type()
 					end
 
-					varargs = { dots = dots, type = { colon = colon, type = type } }
+					varargs = {
+						dots = dots,
+						type = { colon = colon, type = type },
+					} :: any -- TODO: Luau bug
 				else
-					varargs = { dots = dots, type = nil }
+					varargs = {
+						dots = dots,
+						type = nil,
+					} :: any -- TODO: Luau bug
 				end
 
 				break
@@ -1411,7 +1417,7 @@ local function parse_function_body(): cst.FunctionBody
 	end
 
 	local close = expect(")")
-	local ret: { read colon: cst.TokenKind<":">, read type: cst.ReturnType }? = nil
+	local ret: { colon: cst.TokenKind<":">, type: cst.ReturnType }? = nil
 
 	if current_kind == ":" then
 		local colon = consume() :: cst.TokenKind<":">
@@ -1485,8 +1491,8 @@ do
 					first = first,
 					middle = middle,
 					last = last,
-				}
-			}
+				},
+			} :: cst.Expr_IString
 		elseif current_kind == "{" then
 			return { kind = "table", table = parse_table() }
 		elseif current_kind == "function" or current_kind == "attribute" then
@@ -1798,8 +1804,8 @@ function parse_var(): cst.Var
 			or current_kind == "string"
 		then
 			local method: {
-				read colon: cst.TokenKind<":">,
-				read name: cst.TokenKind<"ident">,
+				colon: cst.TokenKind<":">,
+				name: cst.TokenKind<"ident">,
 			}? = nil
 
 			if current_kind == ":" then
@@ -1910,8 +1916,8 @@ do
 		end
 
 		local else_branch: {
-			read else_tok: cst.TokenKind<"else">,
-			read block: cst.Block,
+			else_tok: cst.TokenKind<"else">,
+			block: cst.Block,
 		}? = nil
 		
 		if current_kind == "else" then
@@ -1973,8 +1979,8 @@ do
 			local end_expr = parse_expr()
 
 			local step: {
-				read comma: cst.TokenKind<",">,
-				read expr: cst.Expr,
+				comma: cst.TokenKind<",">,
+				expr: cst.Expr,
 			}? = nil
 			
 
@@ -2099,8 +2105,8 @@ do
 		end
 
 		local method: {
-			read colon: cst.TokenKind<":">,
-			read name: cst.TokenKind<"ident">,
+			colon: cst.TokenKind<":">,
+			name: cst.TokenKind<"ident">,
 		}? = nil
 		
 		if current_kind == ":" then
@@ -2193,14 +2199,14 @@ do
 						equals = equals,
 						exprs = exprs,
 					},
-				}
+				} :: cst.Stat_LocalVariable
 			else
 				return {
 					kind = "localvariable",
 					local_tok = local_tok,
 					bindings = bindings,
 					values = nil,
-				}
+				} :: cst.Stat_LocalVariable
 			end
 		end
 	end
@@ -2369,7 +2375,8 @@ do
 					if current_token.kind == "ident" and current_token.text == "type" then
 						type_tok = consume() :: cst.TokenKind<"ident">
 					else
-						report(`expected 'type' after 'export' but got {display(current_token)}`)
+						local current_token_any = current_token :: any -- TODO: Luau bug
+						report(`expected 'type' after 'export' but got {display(current_token_any)}`)
 					end
 				else
 					type_tok = tok
@@ -2398,7 +2405,7 @@ do
 				return {
 					kind = "continue",
 					tok = tok,
-				}
+				} :: cst.LastStat_Continue
 			end
 		end
 
@@ -2416,7 +2423,7 @@ do
 				return {
 					stats = stats,
 					last_stat = { stat = stat, semicolon = semicolon },
-				}
+				} :: cst.Block
 			else
 				table.insert(stats, {
 					node = stat,
@@ -2428,7 +2435,7 @@ do
 		return {
 			stats = stats,
 			last_stat = nil,
-		}
+		} :: cst.Block
 	end
 end
 

@@ -79,15 +79,7 @@ function span_table_type_field(node: cst.TableTypeField): cst.Span
 end
 
 function span_tail_type(node: cst.TailType): cst.Span
-	if
-		node.kind == "variadic"
-		or node.kind == "generic"
-		or node.kind == "list"
-	then
-		return span_type_pack(node)
-	else
-		return span_type(node)
-	end
+	return span_type_pack(node)
 end
 
 function span_type(node: cst.Type): cst.Span
