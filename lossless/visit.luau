@@ -1399,7 +1399,7 @@ function visit_last_stat<State>(visitor: Visitor<State>, state: State, node: cst
 	visitor.visit_last_stat_end(state, node)
 end
 
-function visit_block<State>(state: State, visitor: Visitor<State>, block: cst.Block)
+function visit_block<State>(visitor: Visitor<State>, state: State, block: cst.Block)
 	visitor.visit_block(state, block)
 
 	for _, pair in block.stats do
