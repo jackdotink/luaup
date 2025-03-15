@@ -2411,7 +2411,7 @@ do
 					
 					return {
 						kind = "typefunction",
-						c = export_tok,
+						export_tok = export_tok,
 						type_tok = type_tok,
 						function_tok = function_tok,
 						name = name,
