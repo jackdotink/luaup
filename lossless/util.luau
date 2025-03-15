@@ -36,7 +36,7 @@ do
 
 		if (token :: any).text then
 			write((token :: any).text :: any)
-		else
+		elseif token.kind ~= "eof" then
 			write(token.kind)
 		end
 	end
