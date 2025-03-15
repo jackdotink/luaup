@@ -2382,25 +2382,44 @@ do
 					type_tok = tok
 				end
 
-				local name = expect("ident")
-				local generics: cst.GenericDeclarationWithDefaults? = nil
+				if current_kind == "ident" then 
+					local name = expect("ident")
+					local generics: cst.GenericDeclarationWithDefaults? = nil
+	
+					if current_kind == "<" then
+						generics = parse_generic_declaration_with_defaults()
+					end
+	
+					local equals = expect("=")
+					local type = parse_type()
+	
+					return {
+						kind = "type",
+						export_tok = export_tok,
+						type_tok = type_tok,
+						name = name,
+						generics = generics,
+						equals = equals,
+						type = type,
+					}	
+				elseif current_kind == "function" then -- Type function
+					local function_tok = expect("function")
 
-				if current_kind == "<" then
-					generics = parse_generic_declaration_with_defaults()
+					local name = expect("ident")
+		
+					local body = parse_function_body()
+					
+					return {
+						kind = "typefunction",
+						c = export_tok,
+						type_tok = type_tok,
+						function_tok = function_tok,
+						name = name,
+						body = body,
+					} :: cst.Stat_TypeFunction -- Luau moment
+				else
+					report(`expected 'ident' or 'function' after 'export type', but got {display(current_token)}`)
 				end
-
-				local equals = expect("=")
-				local type = parse_type()
-
-				return {
-					kind = "type",
-					export_tok = export_tok,
-					type_tok = type_tok,
-					name = name,
-					generics = generics,
-					equals = equals,
-					type = type,
-				}
 			elseif tok.text == "continue" then
 				return {
 					kind = "continue",

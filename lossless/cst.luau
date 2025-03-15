@@ -1324,6 +1324,31 @@ export type Stat_LocalFunction = {
 	body: FunctionBody,
 }
 
+--- A type function declaration stat, such as
+--- `type function foo() return 1 end`.
+export type Stat_TypeFunction = {
+	kind: "typefunction",
+
+	--- The optional `export` token.
+	--- 
+	--- Note that the value of this identifier must be `export` otherwise this
+	--- will result in a syntax error.
+	export_tok: TokenKind<"ident">?,
+	
+	--- The `type` token.
+	type_tok: TokenKind<"type">,
+
+	--- The `function` token.
+	function_tok: TokenKind<"function">,
+
+	--- The name; the `foo` in `type function foo() return 1 end`.
+	name: TokenKind<"ident">,
+
+	--- The function body; the `() return 1 end` in
+	--- `type function foo() return 1 end`.
+	body: FunctionBody,
+}
+
 --- A local variable stat, such as `local foo: bar, baz = qux, quux, quuz`.
 export type Stat_LocalVariable = {
 	kind: "localvariable",
@@ -1388,6 +1413,7 @@ export type Stat =
 	| Stat_ForIn
 	| Stat_Function
 	| Stat_LocalFunction
+	| Stat_TypeFunction
 	| Stat_LocalVariable
 	| Stat_Type
 

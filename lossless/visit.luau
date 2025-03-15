@@ -182,6 +182,8 @@ export type Visitor<State> = {
 	visit_stat_function_end: (state: State, node: cst.Stat_Function) -> (),
 	visit_stat_local_function: (state: State, node: cst.Stat_LocalFunction) -> (),
 	visit_stat_local_function_end: (state: State, node: cst.Stat_LocalFunction) -> (),
+	visit_stat_type_function: (state: State, node: cst.Stat_TypeFunction) -> (),
+	visit_stat_type_function_end: (state: State, node: cst.Stat_TypeFunction) -> (),
 	visit_stat_local_variable: (state: State, node: cst.Stat_LocalVariable) -> (),
 	visit_stat_local_variable_end: (state: State, node: cst.Stat_LocalVariable) -> (),
 	visit_stat_type: (state: State, node: cst.Stat_Type) -> (),
@@ -386,6 +388,8 @@ local function visitor<State>(): Visitor<State>
 		visit_stat_function_end = noop,
 		visit_stat_local_function = noop,
 		visit_stat_local_function_end = noop,
+		visit_stat_type_function = noop,
+		visit_stat_type_function_end = noop,
 		visit_stat_local_variable = noop,
 		visit_stat_local_variable_end = noop,
 		visit_stat_type = noop,
@@ -1304,6 +1308,44 @@ function visit_stat<State>(visitor: Visitor<State>, state: State, node: cst.Stat
 		visit_token(visitor, state, node.name)
 		visit_function_body(visitor, state, node.body)
 		visitor.visit_stat_local_function_end(state, node)
+	elseif node.kind == "typefunction" then
+		node = node :: cst.Stat_TypeFunction
+
+		--[[
+		node = node :: cst.Stat_Type
+		visitor.visit_stat_type(state, node)
+		
+		local export_tok = node.export_tok
+		if export_tok then
+			visit_token(visitor, state, export_tok)
+		end
+
+		visit_token(visitor, state, node.type_tok)
+		visit_token(visitor, state, node.name)
+		
+		local generics = node.generics
+		if generics then
+			visit_generic_declaration_with_defaults(visitor, state, generics)
+		end
+
+		visit_token(visitor, state, node.equals)
+		visit_type(visitor, state, node.type)
+		visitor.visit_stat_type_end(state, node)
+		]]
+
+		visitor.visit_stat_type_function(state, node)
+
+		local export_tok = node.export_tok
+		if export_tok then
+			visit_token(visitor, state, export_tok)
+		end
+
+		visit_token(visitor, state, node.type_tok)
+		visit_token(visitor, state, node.function_tok)
+		visit_token(visitor, state, node.name)
+		
+		visit_function_body(visitor, state, node.body)
+		visitor.visit_stat_type_function_end(state, node)
 	elseif node.kind == "localvariable" then
 		node = node :: cst.Stat_LocalVariable
 		visitor.visit_stat_local_variable(state, node)
