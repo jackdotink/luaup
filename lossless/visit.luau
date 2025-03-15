@@ -1311,28 +1311,6 @@ function visit_stat<State>(visitor: Visitor<State>, state: State, node: cst.Stat
 	elseif node.kind == "typefunction" then
 		node = node :: cst.Stat_TypeFunction
 
-		--[[
-		node = node :: cst.Stat_Type
-		visitor.visit_stat_type(state, node)
-		
-		local export_tok = node.export_tok
-		if export_tok then
-			visit_token(visitor, state, export_tok)
-		end
-
-		visit_token(visitor, state, node.type_tok)
-		visit_token(visitor, state, node.name)
-		
-		local generics = node.generics
-		if generics then
-			visit_generic_declaration_with_defaults(visitor, state, generics)
-		end
-
-		visit_token(visitor, state, node.equals)
-		visit_type(visitor, state, node.type)
-		visitor.visit_stat_type_end(state, node)
-		]]
-
 		visitor.visit_stat_type_function(state, node)
 
 		local export_tok = node.export_tok
